@@ -1,0 +1,110 @@
+{
+  "users": [
+    {
+      "username": "ducky",
+      "role": "Viewer",
+      "email": "ducky@gmail.com",
+      "fullName": "ducky",
+      "permissions": {
+        "canView": true,
+        "canCreate": true,
+        "canEdit": true
+      },
+      "passwordHash": "scrypt:343a6f2c3c5e62689e2217ecd0e43eb4:a471cf657ffb121eb9ea022eb49e37ef8286fccea911da411afdd5a7c753e50fc086b00b5c606f60d5cb16be781ee91289b7403ab1b1eb83bd84636356445da6",
+      "createdAt": "2026-03-24T11:23:33.099Z",
+      "updatedAt": "2026-03-24T11:23:33.099Z"
+    },
+    {
+      "username": "sabrin11",
+      "role": "Analyst",
+      "email": "sabrin11@gmail.com",
+      "fullName": "sabrin11",
+      "permissions": {
+        "canView": true,
+        "canCreate": true,
+        "canEdit": true
+      },
+      "passwordHash": "scrypt:44008af949b171a40988aab9ee4c29aa:4c886703ec3ee2fd7fc6649edadf7ffe22f1a879b63d94b96fcabdc3ab63a9adfc7c552675ab8e322dfb017e0b1531f92a6ff7bc5c1e7e056a8f21a6cbada4a2",
+      "createdAt": "2026-03-24T11:23:10.495Z",
+      "updatedAt": "2026-03-24T11:23:10.495Z"
+    },
+    {
+      "username": "sala",
+      "role": "Admin",
+      "email": "sala@gmail.com",
+      "fullName": "sala",
+      "permissions": {
+        "canView": true,
+        "canCreate": true,
+        "canEdit": true
+      },
+      "passwordHash": "scrypt:77ad79480fa1f6ae72f5bb393d84a408:e3a6d4604d548f0e5a595b24167897beba6cccbc90f36a77f404cb6ba429542a196ac545b46d8d2d59e6635f9924b193c30f44420e61af1cd925805f4f44f70f",
+      "createdAt": "2026-03-24T11:01:37.313Z",
+      "updatedAt": "2026-03-24T11:01:37.313Z"
+    },
+    {
+      "username": "ihjas",
+      "role": "Admin",
+      "email": "ihjas@gmail.com",
+      "fullName": "ihjas",
+      "permissions": {
+        "canView": true,
+        "canCreate": true,
+        "canEdit": true
+      },
+      "passwordHash": "scrypt:ed2fbe197b2f22228204b1da5e49ff48:dcce58a08654bcfcfa95e73a7718f176ead6e77a0634612ed216663a044b6f0dccc86bb34486b0ca6648ee4c0f895f73e37716bbdc6427c311e265b5940a093d",
+      "createdAt": "2026-03-24T10:44:05.342Z",
+      "updatedAt": "2026-03-24T10:44:05.342Z"
+    },
+    {
+      "username": "sabrin",
+      "role": "Analyst",
+      "email": "thisisfaaris@gmail.com",
+      "fullName": "sabrin",
+      "permissions": {
+        "canView": true,
+        "canCreate": true,
+        "canEdit": true
+      },
+      "passwordHash": "scrypt:8d5f1d73f7b4ca31371f7cc9de7cdee0:217ec24234eda3644dd4647468e2ec6b2ac8b241c3639fa723ae3e0a80dcbed837270582a0c6b4d8ca57f0aafec423cc7fcaf8d0666511d124d0be77cbdc9962",
+      "createdAt": "2026-03-24T09:25:46.546Z",
+      "updatedAt": "2026-03-24T09:25:46.546Z"
+    },
+    {
+      "username": "faaris",
+      "role": "Admin",
+      "email": "faaris@gmail.com",
+      "fullName": "faaris rm",
+      "permissions": {
+        "canView": true,
+        "canCreate": true,
+        "canEdit": true
+      },
+      "passwordHash": "scrypt:a45e473377be27297f6237d224affd87:f4a388a73d8f669715094f8455a59d2f34ad604cae13b7a13477a9c4e08ceec6ae27022b599b53a3b9165f74e8caaf25dd4328c60c8e0c1a3b89f7831aeed855",
+      "createdAt": "2026-03-24T09:15:15.174Z",
+      "updatedAt": "2026-03-24T11:03:00.065Z"
+    },
+    {
+      "username": "testing1",
+      "role": "Analyst",
+      "email": "testing1@gmail.com",
+      "fullName": "testing1",
+      "passwordHash": "scrypt:a996b2ee7d297eed532650a92aabefed:62056754a14a64f8ffb858fcc4e7161949b150fad95dd95a9dcf9f9d7bd2f2de2162f4f2d1c36e0fa1c9d081ea5af3f3547472e0ba5091dad1ba29417775cada",
+      "createdAt": "2026-03-23T09:27:29.258Z",
+      "updatedAt": "2026-03-24T07:33:50.043Z",
+      "permissions": {
+        "canView": true,
+        "canCreate": true,
+        "canEdit": true
+      }
+    },
+    {
+      "username": "aathil",
+      "role": "User",
+      "fullName": "aathil",
+      "passwordHash": "scrypt:cbb52a32371af403004ac7a9bbfb8322:7f08bc52c013d02cb8f3c234e5ee457fdce34a33f6cb4546010e7b02d418f07645a92905d5eec9d9f3e5b0527a0d59302fc2a1f0e667c8753bd6761055562fc6",
+      "createdAt": "2026-03-19T07:02:35.969Z",
+      "updatedAt": "2026-03-23T09:26:19.313Z"
+    }
+  ]
+}
