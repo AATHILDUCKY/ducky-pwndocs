@@ -30,7 +30,7 @@
     },
     {
       "username": "sala",
-      "role": "Admin",
+      "role": "Analyst",
       "email": "sala@gmail.com",
       "fullName": "sala",
       "permissions": {
@@ -38,9 +38,9 @@
         "canCreate": true,
         "canEdit": true
       },
-      "passwordHash": "scrypt:77ad79480fa1f6ae72f5bb393d84a408:e3a6d4604d548f0e5a595b24167897beba6cccbc90f36a77f404cb6ba429542a196ac545b46d8d2d59e6635f9924b193c30f44420e61af1cd925805f4f44f70f",
+      "passwordHash": "scrypt:e5197a2eaeb0e48e0a00ae8732105344:63b9429d511941829b41fd3e7f163e3e0b0baeb26c44e82b2e8003df103d0269d4d5fdfc880495dd67d930c3f0578dd087c84adbca88215593bafdc5177d6349",
       "createdAt": "2026-03-24T11:01:37.313Z",
-      "updatedAt": "2026-03-24T11:01:37.313Z"
+      "updatedAt": "2026-05-18T07:36:20.519Z"
     },
     {
       "username": "ihjas",
@@ -72,17 +72,17 @@
     },
     {
       "username": "faaris",
-      "role": "Admin",
+      "role": "Analyst",
       "email": "faaris@gmail.com",
-      "fullName": "faaris rm",
+      "fullName": "faaris1",
       "permissions": {
         "canView": true,
         "canCreate": true,
         "canEdit": true
       },
-      "passwordHash": "scrypt:a45e473377be27297f6237d224affd87:f4a388a73d8f669715094f8455a59d2f34ad604cae13b7a13477a9c4e08ceec6ae27022b599b53a3b9165f74e8caaf25dd4328c60c8e0c1a3b89f7831aeed855",
+      "passwordHash": "scrypt:326295c27f81d814986c5bf86de95e89:9465b83508a4fc7db40eb98ff1c46acd5023b8a2a37901964240c5676467a70fb2bfdaa1f7edb112b1c77d83464b54f47d92f9ad92bce9158b38449fcc55ffe8",
       "createdAt": "2026-03-24T09:15:15.174Z",
-      "updatedAt": "2026-03-24T11:03:00.065Z"
+      "updatedAt": "2026-05-12T10:52:46.584Z"
     },
     {
       "username": "testing1",

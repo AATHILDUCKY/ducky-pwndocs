@@ -47,7 +47,7 @@ export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: stri
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-xl font-black text-slate-800 tracking-tight">{title}</h3>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Ducky Pwn Docs Protocol</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Welford Systems VM Protocol</p>
             </div>
           </div>
           {children}

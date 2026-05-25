@@ -221,6 +221,8 @@
   --ui-text: #0f172a;
   --ui-muted: #64748b;
   --ui-border: #e2e8f0;
+  --ui-indigo: #6366f1;
+  --ui-indigo-dark: #4f46e5;
 }
 
 html,
@@ -240,29 +242,94 @@ body {
 }
 
 /* Normalize tiny utility sizes used across the app */
-.text-\[8px\] { font-size: 10px; line-height: 1.35; }
-.text-\[9px\] { font-size: 11px; line-height: 1.4; }
+.text-\[8px\]  { font-size: 10px; line-height: 1.35; }
+.text-\[9px\]  { font-size: 11px; line-height: 1.4; }
 .text-\[10px\] { font-size: 12px; line-height: 1.4; }
 .text-\[11px\] { font-size: 13px; line-height: 1.45; }
 
 /* Reduce extreme tracking for readability */
-.tracking-\[0\.4em\] { letter-spacing: 0.22em; }
-.tracking-\[0\.3em\] { letter-spacing: 0.16em; }
+.tracking-\[0\.4em\]  { letter-spacing: 0.22em; }
+.tracking-\[0\.3em\]  { letter-spacing: 0.16em; }
 .tracking-\[0\.25em\] { letter-spacing: 0.14em; }
-.tracking-\[0\.2em\] { letter-spacing: 0.12em; }
+.tracking-\[0\.2em\]  { letter-spacing: 0.12em; }
 
 /* Slightly calmer card radii for modern consistency */
 .rounded-\[2\.5rem\] { border-radius: 2rem; }
-.rounded-\[3rem\] { border-radius: 2.25rem; }
+.rounded-\[3rem\]    { border-radius: 2.25rem; }
 
 /* Inter-friendly weight normalization across the app */
-.font-black { font-weight: 700; }
-.font-bold { font-weight: 600; }
+.font-black   { font-weight: 700; }
+.font-bold    { font-weight: 600; }
 .font-semibold { font-weight: 600; }
 
 /* Better readability on larger laptop screens */
 @media (min-width: 1280px) and (max-width: 1728px) {
-  .max-w-7xl {
-    max-width: 1320px;
-  }
+  .max-w-7xl { max-width: 1320px; }
 }
+
+/* ── Custom scrollbar ─────────────────────────────────────────── */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+.custom-scrollbar::-webkit-scrollbar       { width: 5px; height: 5px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.45);
+}
+
+/* ── Smooth fade/slide-in animation ──────────────────────────── */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-slide {
+  animation: fadeSlideUp 0.4s ease both;
+}
+
+/* ── Staggered card entrance ─────────────────────────────────── */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.10s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.20s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.30s; }
+
+/* ── Tooltip polish (recharts) ───────────────────────────────── */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  border-radius: 12px !important;
+  border: none !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12) !important;
+  font-size: 12px !important;
+  font-family: var(--font-inter), "Inter", sans-serif !important;
+}
+
+/* ── Card hover lift ─────────────────────────────────────────── */
+.card-lift {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card-lift:hover {
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.10);
+  transform: translateY(-2px);
+}
+
+/* ── Status dot pulse variants ───────────────────────────────── */
+@keyframes pulse-red {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50%       { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0); }
+}
+@keyframes pulse-amber {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  50%       { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0); }
+}
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+  50%       { box-shadow: 0 0 0 5px rgba(34, 197, 94, 0); }
+}
+.pulse-red   { animation: pulse-red   1.8s ease infinite; }
+.pulse-amber { animation: pulse-amber 1.8s ease infinite; }
+.pulse-green { animation: pulse-green 1.8s ease infinite; }

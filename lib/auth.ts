@@ -71,9 +71,9 @@ export const getSessionTTLSeconds = () => SESSION_TTL_SECONDS;
 
 export const getAdminCredentials = () => ({
   username: getEnv('ADMIN_USERNAME', 'admin'),
-  password: getEnv('ADMIN_PASSWORD', 'admin123'),
-  email: getEnv('ADMIN_EMAIL', `${getEnv('ADMIN_USERNAME', 'admin')}@localhost`),
-  fullName: getEnv('ADMIN_FULL_NAME', 'Administrator'),
+  password: getEnv('ADMIN_PASSWORD', 'ChangeMe_UseLongRandomPassword'),
+  email: getEnv('ADMIN_EMAIL', `${getEnv('ADMIN_USERNAME', 'admin')}@welford.local`),
+  fullName: getEnv('ADMIN_FULL_NAME', 'Welford Admin'),
 });
 
 export const isValidAdminLogin = (identifier: string, password: string) => {

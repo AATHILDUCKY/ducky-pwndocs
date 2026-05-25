@@ -90,7 +90,7 @@ export default function AuthGate() {
               <Shield size={22} />
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-white">Secure Login</h1>
+              <h1 className="text-2xl font-black tracking-tight text-white">Welford Systems Login</h1>
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400 mt-2">
                 Authenticate to access workspace
               </p>
@@ -108,7 +108,7 @@ export default function AuthGate() {
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
                 className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm font-semibold text-slate-100 outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500"
-                placeholder="admin or admin@localhost"
+                placeholder="admin or admin@welford.local"
               />
             </div>
 

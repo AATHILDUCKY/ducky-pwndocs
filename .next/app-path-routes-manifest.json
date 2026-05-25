@@ -1,0 +1,17 @@
+{
+  "/api/admin/user-credentials/route": "/api/admin/user-credentials",
+  "/api/auth/login/route": "/api/auth/login",
+  "/api/auth/logout/route": "/api/auth/logout",
+  "/api/auth/session/route": "/api/auth/session",
+  "/api/issues/[projectId]/[issueId]/route": "/api/issues/[projectId]/[issueId]",
+  "/api/issues/[projectId]/route": "/api/issues/[projectId]",
+  "/api/media/[filename]/route": "/api/media/[filename]",
+  "/api/media/upload/route": "/api/media/upload",
+  "/api/notes/[projectId]/[noteId]/route": "/api/notes/[projectId]/[noteId]",
+  "/api/notes/[projectId]/route": "/api/notes/[projectId]",
+  "/api/projects/[id]/route": "/api/projects/[id]",
+  "/api/projects/route": "/api/projects",
+  "/_not-found/page": "/_not-found",
+  "/[...slug]/page": "/[...slug]",
+  "/page": "/"
+}

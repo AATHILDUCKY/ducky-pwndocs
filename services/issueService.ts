@@ -2,6 +2,12 @@ import type { Issue } from '../types';
 import { readStore, sortByUpdateDesc, updateProjectCounts, writeStore } from './webStore';
 import { recordChange } from './auditService';
 
+// In-memory cache so switching back to a visited project is instant
+const memCache = new Map<string, { data: Issue[]; ts: number }>();
+const CACHE_TTL_MS = 45_000; // 45 s — fresh enough, avoids constant re-fetches
+
+export const invalidateIssueCache = (projectId: string) => memCache.delete(projectId);
+
 const syncLocalIssues = (projectId: string, issues: Issue[]) => {
   writeStore((store) => {
     const nextStore = {
@@ -34,28 +40,33 @@ const seedServerIssuesFromLocal = async (projectId: string, localIssues: Issue[]
 
 export const fetchIssues = async (projectId: string): Promise<Issue[]> => {
   if (!projectId) return [];
+
+  // Return in-memory cache if still fresh
+  const hit = memCache.get(projectId);
+  if (hit && Date.now() - hit.ts < CACHE_TTL_MS) return hit.data;
+
   if (typeof window !== 'undefined') {
     try {
-      const response = await fetch(`/api/issues/${encodeURIComponent(projectId)}`, { cache: 'no-store' });
-      if (!response.ok) {
-        throw new Error('Failed to fetch issues.');
-      }
+      const response = await fetch(`/api/issues/${encodeURIComponent(projectId)}`);
+      if (!response.ok) throw new Error('Failed to fetch issues.');
 
       const body = (await response.json()) as { issues?: Issue[] };
       const issues = sortByUpdateDesc(Array.isArray(body.issues) ? body.issues : []);
       const localIssues = sortByUpdateDesc(readStore().issues[projectId] || []);
-      if (!issues.length && localIssues.length) {
-        return await seedServerIssuesFromLocal(projectId, localIssues);
-      }
-      syncLocalIssues(projectId, issues);
-      return issues;
+      const result = !issues.length && localIssues.length
+        ? await seedServerIssuesFromLocal(projectId, localIssues)
+        : issues;
+      syncLocalIssues(projectId, result);
+      memCache.set(projectId, { data: result, ts: Date.now() });
+      return result;
     } catch {
-      // fallback to local cache
+      // fall through to local store
     }
   }
 
-  const store = readStore();
-  return sortByUpdateDesc(store.issues[projectId] || []);
+  const local = sortByUpdateDesc(readStore().issues[projectId] || []);
+  memCache.set(projectId, { data: local, ts: Date.now() });
+  return local;
 };
 
 export const persistIssue = async (projectId: string, issue: Issue): Promise<void> => {
@@ -76,6 +87,7 @@ export const persistIssue = async (projectId: string, issue: Issue): Promise<voi
     const body = (await response.json()) as { issues?: Issue[] };
     const issues = sortByUpdateDesc(Array.isArray(body.issues) ? body.issues : []);
     syncLocalIssues(projectId, issues);
+    invalidateIssueCache(projectId);
 
     recordChange({
       action: exists ? 'Updated finding' : 'Created finding',
@@ -136,6 +148,7 @@ export const deleteIssue = async (projectId: string, issueId: string): Promise<v
     const body = (await response.json()) as { issues?: Issue[] };
     const issues = sortByUpdateDesc(Array.isArray(body.issues) ? body.issues : []);
     syncLocalIssues(projectId, issues);
+    invalidateIssueCache(projectId);
 
     recordChange({
       action: 'Deleted finding',

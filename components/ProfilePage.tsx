@@ -89,7 +89,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
               </div>
               <p className="text-sm font-bold text-slate-700">{adminIdentity?.username || profile.username}</p>
               <p className="text-[11px] font-semibold text-slate-500">
-                {adminIdentity?.email || profile.email || 'admin@localhost'}
+                {adminIdentity?.email || profile.email || 'admin@welford.local'}
               </p>
             </div>
           )}

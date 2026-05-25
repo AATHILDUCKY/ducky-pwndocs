@@ -40,6 +40,9 @@ export async function POST(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
+  if (session.role !== 'Admin') {
+    return NextResponse.json({ error: 'Only Admin can create projects.' }, { status: 403 });
+  }
 
   let payload: CreateProjectPayload = {};
   try {
@@ -48,8 +51,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
 
-  if (!payload.name?.trim() || !payload.client?.trim()) {
-    return NextResponse.json({ error: 'Project name and client are required.' }, { status: 400 });
+  if (!payload.name?.trim()) {
+    return NextResponse.json({ error: 'Project name is required.' }, { status: 400 });
   }
 
   const parentId = typeof payload.parentId === 'string' ? payload.parentId.trim() : '';
@@ -66,7 +69,7 @@ export async function POST(request: NextRequest) {
 
   const project = createProjectRecord({
     name: payload.name,
-    client: payload.client,
+    client: payload.client?.trim() || '',
     ownerUsername: session.username,
     collaboratorUsernames: payload.collaboratorUsernames,
     parentId: parentId || null,

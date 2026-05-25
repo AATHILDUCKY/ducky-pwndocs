@@ -8,6 +8,23 @@ export interface Comment {
   timestamp: string;
 }
 
+export interface ReportComment {
+  id: string;
+  sectionId: string;
+  parentId: string | null;
+  user: string;
+  text: string;
+  timestamp: string;
+  attachments?: ReportCommentAttachment[];
+}
+
+export interface ReportCommentAttachment {
+  id: string;
+  type: 'image' | 'video' | 'link';
+  url: string;
+  label?: string;
+}
+
 export interface CustomField {
   id: string;
   label: string;
@@ -37,6 +54,23 @@ export interface Issue {
   evidence: Evidence[];
   customFields: CustomField[];
   comments: Comment[];
+  reportSectionComments?: ReportComment[];
+  vulnerabilitySource?: 'NCSC Advisory' | 'CISA Advisory' | 'Vendor Advisory' | 'Azure Defender for Cloud' | 'Manual Report' | 'Internal Scan' | 'External Scan' | 'Other';
+  dateIdentified?: string;
+  assetClassification?: 'Confidential' | 'Internal' | 'Public';
+  exposure?: 'Internet-facing' | 'Internal' | 'Restricted' | 'Third-party managed';
+  businessImpact?: string;
+  remediationOwner?: string;
+  remediationAction?: string;
+  remediationDueDate?: string;
+  remediationCompletedDate?: string;
+  verificationDate?: string;
+  verificationResult?: 'Not Verified' | 'Passed' | 'Failed' | 'Compensating Control';
+  exceptionRequired?: boolean;
+  exceptionJustification?: string;
+  compensatingControls?: string;
+  riskAcceptanceApprover?: string;
+  riskAcceptanceDate?: string;
   updatedAt: string;
 }
 

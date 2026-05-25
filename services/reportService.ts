@@ -2,6 +2,7 @@ import type { Issue, Project } from '../types';
 import { fetchIssues } from './issueService';
 import { fetchProjects } from './projectService';
 import { recordChange } from './auditService';
+import { getIsoEvidenceScore, getIssueDueDate, getSlaStatus, ISO_CONTROL_REFERENCE } from '../utils/vulnerabilityProcedure';
 
 type ReportFormat = 'pdf' | 'html' | 'docx';
 
@@ -13,20 +14,60 @@ const esc = (value: string) =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 
+const emptyText = 'Not added yet';
+
 const issuesTable = (issues: Issue[]) => {
   if (!issues.length) {
-    return '<p>No findings available for this project.</p>';
+    return '<p>No vulnerabilities have been added to this project yet.</p>';
   }
 
   const rows = issues
     .map(
-      (issue) =>
-        `<tr><td>${esc(issue.title || 'Untitled')}</td><td>${esc(issue.severity || 'Info')}</td><td>${esc(issue.state || 'Open')}</td><td>${esc(issue.cvssScore || '0')}</td><td>${esc(issue.updatedAt || '')}</td></tr>`
+      (issue) => {
+        const sla = getSlaStatus(issue);
+        return `<tr><td>${esc(issue.title || 'Untitled')}</td><td>${esc(issue.severity || 'Info')}</td><td>${esc(issue.state || 'Open')}</td><td>${esc(issue.cvssScore || '0')}</td><td>${esc(issue.vulnerabilitySource || emptyText)}</td><td>${esc(getIssueDueDate(issue) || 'Routine')}</td><td>${esc(sla.label)}</td><td>${getIsoEvidenceScore(issue)}%</td></tr>`;
+      }
     )
     .join('');
 
-  return `<table><thead><tr><th>Title</th><th>Severity</th><th>Status</th><th>CVSS</th><th>Updated</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table><thead><tr><th>Vulnerability</th><th>Severity</th><th>Status</th><th>CVSS</th><th>How Found</th><th>Due Date</th><th>SLA Status</th><th>Audit Info</th></tr></thead><tbody>${rows}</tbody></table>`;
 };
+
+let logoDataUrlCache: string | null = null;
+
+const getReportLogoSrc = async (): Promise<string> => {
+  if (logoDataUrlCache) return logoDataUrlCache;
+  if (typeof window === 'undefined') return '/assets/app-logo.png';
+
+  try {
+    const response = await fetch('/assets/app-logo.png');
+    if (!response.ok) throw new Error('Logo image unavailable');
+    const blob = await response.blob();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Unable to read logo image'));
+      reader.readAsDataURL(blob);
+    });
+    logoDataUrlCache = dataUrl || '/assets/app-logo.png';
+    return logoDataUrlCache;
+  } catch {
+    return '/assets/app-logo.png';
+  }
+};
+
+const reportBrandHeader = (title: string, subtitle: string, logoSrc: string) => `
+  <header class="report-head">
+    <div class="brand">
+      <img src="${esc(logoSrc)}" alt="Welford logo" class="brand-logo" />
+      <div>
+        <p class="brand-kicker">Welford Systems</p>
+        <h1>${esc(title)}</h1>
+        <p class="brand-subtitle">${esc(subtitle)}</p>
+      </div>
+    </div>
+  </header>
+`;
 
 const htmlShell = (title: string, body: string) => `<!doctype html>
 <html>
@@ -37,7 +78,7 @@ const htmlShell = (title: string, body: string) => `<!doctype html>
   <style>
     body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; color: #0f172a; }
     h1, h2, h3 { margin: 0 0 0.75rem; }
-    h1 { font-size: 1.6rem; }
+    h1 { font-size: 1.55rem; }
     p { color: #334155; line-height: 1.6; }
     table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
     th, td { border: 1px solid #cbd5e1; text-align: left; padding: 0.5rem 0.6rem; font-size: 0.85rem; }
@@ -45,6 +86,11 @@ const htmlShell = (title: string, body: string) => `<!doctype html>
     .meta { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 0.5rem; margin: 1rem 0; }
     .meta div { padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 0.5rem; background: #f8fafc; }
     .caption { color: #64748b; font-size: 0.8rem; margin-top: 1rem; }
+    .report-head { border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem; margin-bottom: 1rem; }
+    .brand { display: flex; align-items: center; gap: 1rem; }
+    .brand-logo { width: 72px; height: 72px; object-fit: contain; }
+    .brand-kicker { margin: 0; color: #0369a1; font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 800; }
+    .brand-subtitle { margin-top: 0.15rem; font-size: 0.85rem; color: #475569; }
   </style>
 </head>
 <body>
@@ -52,45 +98,62 @@ ${body}
 </body>
 </html>`;
 
-const makeProjectHtml = (project: Project, issues: Issue[]) => {
+const makeProjectHtml = (project: Project, issues: Issue[], logoSrc: string) => {
   const total = issues.length;
   const critical = issues.filter((issue) => issue.severity === 'Critical').length;
   const high = issues.filter((issue) => issue.severity === 'High').length;
   const medium = issues.filter((issue) => issue.severity === 'Medium').length;
   const low = issues.filter((issue) => issue.severity === 'Low').length;
+  const averageEvidence = issues.length
+    ? Math.round(issues.reduce((sum, issue) => sum + getIsoEvidenceScore(issue), 0) / issues.length)
+    : 100;
+  const overdue = issues.filter((issue) => getSlaStatus(issue).tone === 'danger').length;
 
   return htmlShell(
     `Project Report - ${project.name}`,
-    `<h1>${esc(project.name)} - Security Report</h1>
-    <p>Client: ${esc(project.client)}</p>
+    `${reportBrandHeader(`${project.name} - Security Report`, `Client: ${project.client}`, logoSrc)}
     <div class="meta">
-      <div><strong>Total Findings</strong><br/>${total}</div>
+      <div><strong>Total Vulnerabilities</strong><br/>${total}</div>
       <div><strong>Last Updated</strong><br/>${esc(project.lastUpdate || new Date().toISOString())}</div>
       <div><strong>Critical / High</strong><br/>${critical} / ${high}</div>
       <div><strong>Medium / Low</strong><br/>${medium} / ${low}</div>
+      <div><strong>${esc(ISO_CONTROL_REFERENCE)}</strong><br/>${averageEvidence}% information complete</div>
+      <div><strong>Overdue Items</strong><br/>${overdue}</div>
     </div>
-    <h2>Findings</h2>
+    <h2>Vulnerability Register</h2>
     ${issuesTable(issues)}
-    <p class="caption">Generated by Ducky Pwn Docs web app.</p>`
+    <p class="caption">This report was generated by Welford Systems VM.</p>`
   );
 };
 
-const makeIssueHtml = (project: Project, issue: Issue) =>
+const makeIssueHtml = (project: Project, issue: Issue, logoSrc: string) =>
   htmlShell(
-    `Finding Report - ${issue.title || 'Untitled Finding'}`,
-    `<h1>${esc(issue.title || 'Untitled Finding')}</h1>
-    <p>Project: ${esc(project.name)} (${esc(project.client)})</p>
+    `Vulnerability Report - ${issue.title || 'Untitled Vulnerability'}`,
+    `${reportBrandHeader(issue.title || 'Untitled Vulnerability', `Project: ${project.name} (${project.client})`, logoSrc)}
     <div class="meta">
       <div><strong>Severity</strong><br/>${esc(issue.severity || 'Info')}</div>
       <div><strong>Status</strong><br/>${esc(issue.state || 'Open')}</div>
       <div><strong>CVSS</strong><br/>${esc(issue.cvssScore || '0')}</div>
       <div><strong>Updated</strong><br/>${esc(issue.updatedAt || new Date().toISOString())}</div>
+      <div><strong>How Found</strong><br/>${esc(issue.vulnerabilitySource || emptyText)}</div>
+      <div><strong>Due Date</strong><br/>${esc(getIssueDueDate(issue) || 'Routine maintenance')}</div>
+      <div><strong>SLA Status</strong><br/>${esc(getSlaStatus(issue).label)}</div>
+      <div><strong>Audit Info Complete</strong><br/>${getIsoEvidenceScore(issue)}%</div>
+      <div><strong>Data Classification</strong><br/>${esc(issue.assetClassification || emptyText)}</div>
+      <div><strong>Exposure</strong><br/>${esc(issue.exposure || emptyText)}</div>
+      <div><strong>Owner</strong><br/>${esc(issue.remediationOwner || 'Not assigned')}</div>
+      <div><strong>Verification</strong><br/>${esc(issue.verificationResult || 'Not Verified')}</div>
     </div>
+    <h2>Audit Information</h2>
+    <p><strong>Date found:</strong> ${esc(issue.dateIdentified || emptyText)}</p>
+    <p><strong>Business impact:</strong> ${esc(issue.businessImpact || emptyText)}</p>
+    <p><strong>Fix plan:</strong> ${esc(issue.remediationAction || issue.solution || emptyText)}</p>
+    <p><strong>Exception:</strong> ${esc(issue.exceptionRequired ? `Reason: ${issue.exceptionJustification || 'Reason not added yet'}. Temporary controls: ${issue.compensatingControls || emptyText}. Approved by: ${issue.riskAcceptanceApprover || 'Pending'}.` : 'No exception is currently needed.')}</p>
     <h2>Description</h2>
     <p>${esc(issue.description || 'No description provided.')}</p>
-    <h2>Solution</h2>
-    <p>${esc(issue.solution || 'No remediation guidance provided.')}</p>
-    <p class="caption">Generated by Ducky Pwn Docs web app.</p>`
+    <h2>Recommended Fix</h2>
+    <p>${esc(issue.solution || issue.remediationAction || 'No fix has been added yet.')}</p>
+    <p class="caption">This report was generated by Welford Systems VM.</p>`
   );
 
 const downloadText = (filename: string, content: string, mimeType: string) => {
@@ -125,8 +188,9 @@ export const generateReport = async (
   const project = projects.find((entry) => entry.id === projectId);
   if (!project) return { error: 'Project not found.' };
   const issues = await fetchIssues(projectId);
+  const logoSrc = await getReportLogoSrc();
 
-  const html = makeProjectHtml(project, issues);
+  const html = makeProjectHtml(project, issues, logoSrc);
 
   if (format === 'html' || format === 'docx') {
     const ext = format === 'docx' ? 'html' : 'html';
@@ -170,9 +234,10 @@ export const generateIssueReport = async (
 
   const issues = await fetchIssues(projectId);
   const issue = issues.find((entry) => entry.id === issueId);
-  if (!issue) return { error: 'Finding not found.' };
+  if (!issue) return { error: 'Vulnerability record not found.' };
+  const logoSrc = await getReportLogoSrc();
 
-  const html = makeIssueHtml(project, issue);
+  const html = makeIssueHtml(project, issue, logoSrc);
 
   if (format === 'html' || format === 'docx') {
     const ext = format === 'docx' ? 'html' : 'html';
@@ -212,6 +277,7 @@ export const getReportPreview = async (
   const project = projects.find((entry) => entry.id === projectId);
   if (!project) return { error: 'Project not found.' };
   const issues = await fetchIssues(projectId);
+  const logoSrc = await getReportLogoSrc();
 
   recordChange({
     action: 'Viewed project report preview',
@@ -223,6 +289,6 @@ export const getReportPreview = async (
   });
 
   return {
-    html: makeProjectHtml(project, issues),
+    html: makeProjectHtml(project, issues, logoSrc),
   };
 };

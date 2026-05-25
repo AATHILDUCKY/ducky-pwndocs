@@ -434,7 +434,7 @@ function CreateMethodologyModal({
         <div className="p-10 space-y-8">
           <div>
             <h3 className="text-xl font-black text-slate-800 tracking-tight">Create Methodology</h3>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Ducky Pwn Docs Protocol</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Welford Systems VM Protocol</p>
           </div>
           <div className="space-y-2">
             <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest px-1">Methodology Name</label>

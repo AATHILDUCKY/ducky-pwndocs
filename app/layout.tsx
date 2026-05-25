@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Ducky Pwn Docs',
-  description: 'Ducky Pwn Docs web security reporting suite',
+  title: 'Welford Systems VM',
+  description: 'Web-based vulnerability management platform for collaborative security teams.',
 };
 
 export default function RootLayout({

@@ -1,36 +1,28 @@
 
 import React, { useState, useMemo, useEffect, useCallback, lazy, Suspense } from 'react';
-import { HashRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  Shield, 
-  LayoutDashboard, 
-  AlertTriangle, 
-  CheckSquare, 
-  Download, 
-  Search, 
-  Bell, 
-  Plus, 
-  Briefcase, 
-  X, 
-  ChevronDown, 
-  FileText, 
-  Layers, 
-  Database, 
-  Monitor, 
+import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  AlertTriangle,
+  CheckSquare,
+  Search,
+  Bell,
+  Plus,
+  Briefcase,
+  X,
+  ChevronDown,
   SearchX,
-  Command,
   Loader2,
   Trash2,
   RefreshCw,
   Users,
-  UserPlus
+  UserPlus,
+  Link2,
 } from 'lucide-react';
 
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const IssueList = lazy(() => import('./components/IssueList'));
 const MethodologyTracker = lazy(() => import('./components/MethodologyTracker'));
-const ExportPanel = lazy(() => import('./components/ExportPanel'));
-const NotesPanel = lazy(() => import('./components/NotesPanel'));
 const AdminUsersPage = lazy(() => import('./components/AdminUsersPage'));
 const AdminDashboardPage = lazy(() => import('./components/AdminDashboardPage'));
 import { ManagedUser, Project, UserProfile, UserProfileInput, SmtpSettings, ReportPermissions } from './types';
@@ -39,7 +31,6 @@ import {
   createUserProfile,
   ensureAdminUser,
   fetchActiveUser,
-  fetchUserProfile,
   fetchUsers,
   setActiveUser,
   updateUserProfile,
@@ -50,14 +41,12 @@ import HistoryPage from './components/HistoryPage';
 import ToastHost from './components/ui/ToastHost';
 import { notify } from './utils/notify';
 
-const Navigation: React.FC<{ onRefresh: () => void; isAdmin?: boolean }> = ({ onRefresh, isAdmin = false }) => {
+const Navigation: React.FC<{ onRefresh: () => void; isAdmin?: boolean; onOpenProjectAccess?: () => void; activeProjectId?: string }> = ({ onRefresh, isAdmin = false, onOpenProjectAccess, activeProjectId }) => {
   const location = useLocation();
   const navItems = [
     { path: '/', label: 'Overview', icon: LayoutDashboard },
-    { path: '/notes', label: 'Notes', icon: FileText },
-    { path: '/issues', label: 'Findings', icon: AlertTriangle },
+    { path: '/issues', label: 'Register', icon: AlertTriangle },
     { path: '/methodologies', label: 'Methodology', icon: CheckSquare },
-    { path: '/export', label: 'Deliverables', icon: Download },
     ...(isAdmin ? [{ path: '/dashboard', label: 'Admin Dashboard', icon: Users }] : []),
   ];
 
@@ -84,108 +73,105 @@ const Navigation: React.FC<{ onRefresh: () => void; isAdmin?: boolean }> = ({ on
         );
       })}
       </div>
-      <button
-        onClick={onRefresh}
-        className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-50 transition-all"
-        title="Refresh"
-      >
-        <RefreshCw size={16} />
-      </button>
+      <div className="flex items-center gap-2">
+        {isAdmin && activeProjectId && (
+          <button
+            onClick={onOpenProjectAccess}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition-all"
+            title="Manage project user access"
+          >
+            <UserPlus size={13} />
+            Project Access
+          </button>
+        )}
+        <button
+          onClick={onRefresh}
+          className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-50 transition-all"
+          title="Refresh"
+        >
+          <RefreshCw size={16} />
+        </button>
+      </div>
     </nav>
   );
 };
 
-const VaultNode: React.FC<{ 
-  project: Project; 
-  isActive: boolean; 
+const VaultNode: React.FC<{
+  project: Project;
+  isActive: boolean;
   hasChildren: boolean;
   depth: number;
   onSelect: () => void;
   onToggle: () => void;
-  onCreateSub: () => void;
-  onManageAccess?: () => void;
   onDelete: () => void;
   isExpanded: boolean;
-  canManageAccess?: boolean;
-}> = ({ project, isActive, hasChildren, depth, onSelect, onToggle, onCreateSub, onManageAccess, onDelete, isExpanded, canManageAccess = false }) => {
+  onCopyLink?: () => void;
+}> = ({ project, isActive, hasChildren, depth, onSelect, onToggle, onDelete, isExpanded, onCopyLink }) => {
   const total = project.issueCount.critical + project.issueCount.high + project.issueCount.medium + project.issueCount.low;
-  const progress = Math.min(Math.round((project.issueCount.low / (total || 1)) * 100) + 20, 100);
+  const hasCritical = project.issueCount.critical > 0;
+  const hasHigh = !hasCritical && project.issueCount.high > 0;
 
   return (
     <div className="space-y-1" style={{ paddingLeft: depth ? depth * 12 : 0 }}>
-      <div 
+      <div
         onClick={onSelect}
-        className={`group flex items-center gap-3 py-3 px-3 rounded-2xl cursor-pointer transition-all border ${
-          isActive 
-            ? 'bg-white border-slate-200 shadow-sm ring-1 ring-indigo-500/5' 
-            : 'bg-transparent border-transparent text-slate-500 hover:bg-slate-100/60'
+        className={`group flex items-center gap-3 py-2.5 px-3 rounded-xl cursor-pointer transition-all border ${
+          isActive
+            ? 'bg-white border-slate-200 shadow-sm'
+            : 'bg-transparent border-transparent text-slate-500 hover:bg-slate-50'
         }`}
       >
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-          isActive ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-100 text-slate-400 group-hover:bg-white'
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${
+          isActive ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-500'
         }`}>
-          <Briefcase size={15} />
+          <Briefcase size={14} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className={`text-[11px] font-black truncate leading-tight ${isActive ? 'text-slate-900' : 'text-slate-700'}`}>{project.name}</p>
-          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{project.client}</p>
+          <div className="flex items-center gap-1.5">
+            <p className={`text-sm font-semibold truncate leading-tight ${isActive ? 'text-slate-900' : project.status === 'archived' ? 'text-slate-400' : 'text-slate-700'}`}>{project.name}</p>
+            {project.status === 'archived' && <span className="text-[8px] font-black uppercase tracking-wider text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full shrink-0">Archived</span>}
+            {project.status !== 'archived' && hasCritical && <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" title="Critical issues" />}
+            {project.status !== 'archived' && !hasCritical && hasHigh && <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" title="High issues" />}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-xs text-slate-400 truncate">{project.client}</p>
+            {total > 0 && (
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${
+                hasCritical ? 'bg-red-50 text-red-500' : hasHigh ? 'bg-orange-50 text-orange-500' : 'bg-slate-100 text-slate-400'
+              }`}>
+                {total}
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
-            onClick={(event) => {
-              event.stopPropagation();
-              onCreateSub();
-            }}
-            className="w-6 h-6 flex items-center justify-center text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all active:scale-90"
-            title="Add sub project"
+            onClick={(event) => { event.stopPropagation(); onCopyLink?.(); }}
+            className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-md transition-all"
+            title="Copy project link"
           >
-            <Plus size={12} />
+            <Link2 size={12} />
           </button>
-          {canManageAccess && (
-            <button
-              onClick={(event) => {
-                event.stopPropagation();
-                onManageAccess?.();
-              }}
-              className="w-6 h-6 inline-flex items-center justify-center text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-lg transition-all active:scale-95 border border-sky-100"
-              title="Add user"
-            >
-              <UserPlus size={11} />
-            </button>
-          )}
           {hasChildren && (
             <button
-              onClick={(event) => {
-                event.stopPropagation();
-                onToggle();
-              }}
-              className="w-6 h-6 flex items-center justify-center text-slate-400 hover:bg-slate-100 rounded-lg transition-all"
-              title="Toggle"
+              onClick={(event) => { event.stopPropagation(); onToggle(); }}
+              className="w-6 h-6 flex items-center justify-center text-slate-400 hover:bg-slate-100 rounded-md transition-all"
+              title="Toggle children"
             >
-              <ChevronDown size={14} className={`text-slate-300 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+              <ChevronDown size={13} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
             </button>
           )}
           <button
-            onClick={(event) => {
-              event.stopPropagation();
-              onDelete();
-            }}
-            className="w-6 h-6 flex items-center justify-center text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+            onClick={(event) => { event.stopPropagation(); onDelete(); }}
+            className="w-6 h-6 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all"
             title="Delete project"
           >
             <Trash2 size={12} />
           </button>
-          {project.issueCount.critical > 0 && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>}
         </div>
       </div>
 
-      {isExpanded && (
-        <div className="ml-7 pl-4 border-l-2 border-slate-100 space-y-1 py-1 animate-in slide-in-from-top-2 duration-200">
-          <Link to="/notes" className="flex items-center gap-2.5 py-1.5 text-[9px] font-black text-slate-400 hover:text-indigo-600 transition-colors uppercase tracking-[0.2em]">
-            <FileText size={12} className="text-indigo-400" /> Notes
-          </Link>
-        </div>
-      )}
+      {isExpanded && <div className="ml-6 pl-3 border-l-2 border-slate-100 space-y-1 py-1 animate-in slide-in-from-top-2 duration-200" />}
     </div>
   );
 };
@@ -198,18 +184,18 @@ const Header: React.FC<{
   onOpenDashboard: () => void;
   onLogout: () => void;
   onSwitchUser: (userId: string) => void;
-}> = ({ profile, users, isAdmin, onOpenProfile, onOpenDashboard, onLogout, onSwitchUser }) => {
+}> = ({ profile, users: _users, isAdmin: _isAdmin, onOpenProfile, onOpenDashboard, onLogout, onSwitchUser: _onSwitchUser }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
     <header className="h-16 border-b border-slate-200 bg-white flex items-center justify-between px-6 sticky top-0 z-[100]">
     <div className="flex items-center gap-3">
-      <div className="bg-slate-900 p-2 rounded-xl text-white shadow-lg">
-        <Shield size={20} strokeWidth={2.5} />
+      <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+        <img src="/assets/app-logo.png" alt="Welford logo" className="w-8 h-8 object-contain" />
       </div>
       <div>
-        <h1 className="text-lg font-black text-slate-800 tracking-tighter leading-none">Ducky Pwn Docs</h1>
-        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5">Secure Collaboration</p>
+        <h1 className="text-lg font-black text-slate-800 tracking-tighter leading-none">Welford Systems VM</h1>
+        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.14em] mt-0.5">ISO 27001 Vulnerability Management</p>
       </div>
     </div>
 
@@ -218,7 +204,7 @@ const Header: React.FC<{
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={14} />
         <input 
           type="text" 
-          placeholder="Quick Command Search..." 
+          placeholder="Search projects or vulnerabilities..."
           className="w-full pl-10 pr-4 py-2 bg-slate-100 border-none rounded-2xl text-[11px] font-bold focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all outline-none"
         />
       </div>
@@ -273,7 +259,7 @@ const Header: React.FC<{
 
 const LOADING_PROJECT: Project = {
   id: '',
-  name: 'Syncing vault...',
+  name: 'Loading projects...',
   client: 'Please wait',
   issueCount: { critical: 0, high: 0, medium: 0, low: 0 },
   lastUpdate: '',
@@ -284,7 +270,10 @@ const AppContent = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [activeProjectId, setActiveProjectId] = useState<string>('');
+  const activeProjectId = useMemo(
+    () => new URLSearchParams(location.search).get('project')?.trim() || '',
+    [location.search]
+  );
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', client: '' });
   const [vaultSearch, setVaultSearch] = useState('');
@@ -292,7 +281,9 @@ const AppContent = () => {
   const [projectError, setProjectError] = useState<string | null>(null);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
-  const [newProjectParentId, setNewProjectParentId] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  // Incremented on every sidebar project click so IssueList always remounts (even same project).
+  const [selectorKey, setSelectorKey] = useState(0);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [sessionIdentity, setSessionIdentity] = useState<{
@@ -326,16 +317,10 @@ const AppContent = () => {
     try {
       const data = await fetchProjects();
       setProjects(data);
-      setActiveProjectId((prev) => {
-        if (!data.length) return '';
-        if (prev && data.some((project) => project.id === prev)) return prev;
-        return data[0].id;
-      });
     } catch (error) {
       console.error('Failed to load projects', error);
       notify('Failed to load projects.');
       setProjects([]);
-      setActiveProjectId('');
       setProjectError('Data store unavailable. Please refresh and try again.');
     } finally {
       setIsLoadingProjects(false);
@@ -361,7 +346,7 @@ const AppContent = () => {
     const boot = async () => {
       try {
         let sessionUsername = 'admin';
-        let sessionEmail = 'admin@localhost';
+        let sessionEmail = 'admin@welford.local';
         let sessionRole: 'Admin' | 'Analyst' | 'Viewer' | 'User' = 'Admin';
         let sessionFullName = 'Administrator';
         let sessionPermissions: ReportPermissions = { canView: true, canCreate: true, canEdit: true };
@@ -458,15 +443,19 @@ const AppContent = () => {
   }, [smtpSettings]);
 
   const handleCreateProject = async () => {
-    if (!newProject.name || !newProject.client) return;
+    if (!isAdmin) {
+      notify('Only Admin can create projects.');
+      return;
+    }
+    if (!newProject.name) return;
     try {
       setIsCreatingProject(true);
       setProjectError(null);
-      await createProject({ ...newProject, parentId: newProjectParentId });
+      const created = await createProject({ ...newProject, parentId: null });
       await refreshProjects();
+      navigate({ pathname: '/issues', search: `?project=${created.id}` }, { replace: true });
       setIsAddingProject(false);
       setNewProject({ name: '', client: '' });
-      setNewProjectParentId(null);
     } catch (error) {
       console.error('Could not create project', error);
       notify('Unable to create project.');
@@ -506,12 +495,17 @@ const AppContent = () => {
     });
   }, [projects, isSwitchingUserView, activeManagedUser?.username]);
 
+  const archivedCount = useMemo(() => visibleProjects.filter(p => p.status === 'archived').length, [visibleProjects]);
+
   const filteredVaultProjects = useMemo(() => {
-    return visibleProjects.filter(p => 
-      p.name.toLowerCase().includes(vaultSearch.toLowerCase()) || 
-      p.client.toLowerCase().includes(vaultSearch.toLowerCase())
-    );
-  }, [visibleProjects, vaultSearch]);
+    return visibleProjects.filter(p => {
+      if (!showArchived && p.status === 'archived') return false;
+      return (
+        p.name.toLowerCase().includes(vaultSearch.toLowerCase()) ||
+        p.client.toLowerCase().includes(vaultSearch.toLowerCase())
+      );
+    });
+  }, [visibleProjects, vaultSearch, showArchived]);
 
   const projectTree = useMemo(() => {
     const byParent = new Map<string | null, Project[]>();
@@ -535,23 +529,22 @@ const AppContent = () => {
           isActive={activeProjectId === project.id}
           hasChildren={children.length > 0}
           depth={depth}
-          onSelect={() => setActiveProjectId(project.id)}
+          onSelect={() => {
+            setSelectorKey((k) => k + 1);
+            navigate({ pathname: '/issues', search: `?project=${project.id}` }, { replace: true });
+          }}
           onToggle={() => setExpandedProjects((prev) => ({ ...prev, [project.id]: !isExpanded }))}
-          onCreateSub={() => {
-            setNewProjectParentId(project.id);
-            setIsAddingProject(true);
-          }}
-          onManageAccess={() => {
-            setAccessProjectId(project.id);
-            setSelectedCollaborators(project.collaboratorUsernames || []);
-            setAccessUserSearch('');
-            setAccessTab('current');
-            setAccessError(null);
-            setShowAccessModal(true);
-          }}
           onDelete={() => handleDeleteProject(project)}
           isExpanded={isExpanded}
-          canManageAccess={isAdmin}
+          onCopyLink={async () => {
+            try {
+              const full = `${window.location.origin}/issues?project=${project.id}`;
+              await navigator.clipboard.writeText(full);
+              notify('Project link copied.', 'success');
+            } catch {
+              notify('Unable to copy project link.');
+            }
+          }}
         />
       );
       const childNodes = isExpanded ? renderVaultNodes(project.id, depth + 1) : [];
@@ -561,13 +554,15 @@ const AppContent = () => {
 
   useEffect(() => {
     if (!visibleProjects.length) {
-      setActiveProjectId('');
+      if (activeProjectId) {
+        navigate({ pathname: location.pathname, search: '' }, { replace: true });
+      }
       return;
     }
-    if (!visibleProjects.some((project) => project.id === activeProjectId)) {
-      setActiveProjectId(visibleProjects[0].id);
+    if (!activeProjectId || !visibleProjects.some((project) => project.id === activeProjectId)) {
+      navigate({ pathname: location.pathname, search: `?project=${visibleProjects[0].id}` }, { replace: true });
     }
-  }, [visibleProjects, activeProjectId]);
+  }, [visibleProjects, activeProjectId, location.pathname, navigate]);
 
   const activeProject = useMemo(() => {
     if (!visibleProjects.length) return LOADING_PROJECT;
@@ -665,24 +660,56 @@ const AppContent = () => {
         onLogout={handleLogout}
         onSwitchUser={handleSwitchUser}
       />
-      <Navigation onRefresh={refreshProjects} isAdmin={isAdmin} />
+      <Navigation
+        onRefresh={refreshProjects}
+        isAdmin={isAdmin}
+        activeProjectId={activeProjectId}
+        onOpenProjectAccess={() => {
+          if (!activeProjectId) return;
+          const project = projects.find((p) => p.id === activeProjectId);
+          setAccessProjectId(activeProjectId);
+          setSelectedCollaborators(project?.collaboratorUsernames || []);
+          setAccessUserSearch('');
+          setAccessTab('current');
+          setAccessError(null);
+          setShowAccessModal(true);
+        }}
+      />
       
       <div className="flex-1 flex overflow-hidden">
-        {/* Project Vault Sidebar */}
+        {/* Project Sidebar */}
         <aside className="w-[21.5rem] 2xl:w-80 border-r border-slate-200 bg-white/50 backdrop-blur-xl overflow-y-auto hidden lg:block custom-scrollbar">
           <div className="p-6 space-y-8">
             <div className="space-y-6">
               <div className="flex items-center justify-between px-2">
                 <div className="flex items-center gap-2">
                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-600"></div>
-                   <h2 className="text-[10px] font-black text-slate-800 uppercase tracking-[0.3em]">Project Vault</h2>
+                   <h2 className="text-[10px] font-black text-slate-800 uppercase tracking-[0.14em]">Projects</h2>
+                   <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">{visibleProjects.filter(p => p.status !== 'archived').length}</span>
                 </div>
-                <button 
-                  onClick={() => { setNewProjectParentId(null); setIsAddingProject(true); }}
-                  className="w-7 h-7 flex items-center justify-center text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all active:scale-90"
-                >
-                  <Plus size={16} />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  {archivedCount > 0 && (
+                    <button
+                      onClick={() => setShowArchived(prev => !prev)}
+                      title={showArchived ? 'Hide archived projects' : `Show ${archivedCount} archived`}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border ${
+                        showArchived
+                          ? 'bg-slate-200 text-slate-600 border-slate-300'
+                          : 'bg-slate-50 text-slate-400 border-slate-100 hover:bg-slate-100'
+                      }`}
+                    >
+                      {showArchived ? 'Hide' : `+${archivedCount}`} archived
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button
+                      onClick={() => { setIsAddingProject(true); }}
+                      className="w-7 h-7 flex items-center justify-center text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all active:scale-90"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="px-1">
@@ -690,7 +717,7 @@ const AppContent = () => {
                   <Search size={14} className={`absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors ${vaultSearch ? 'text-indigo-500' : 'text-slate-300'}`} />
                   <input 
                     type="text" 
-                    placeholder="Filter Vault..." 
+                    placeholder="Search projects..."
                     value={vaultSearch}
                     onChange={(e) => setVaultSearch(e.target.value)}
                     className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-100 rounded-2xl text-[10px] font-black focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-100 outline-none transition-all shadow-sm uppercase tracking-widest placeholder:text-slate-300"
@@ -712,14 +739,14 @@ const AppContent = () => {
                 ) : isLoadingProjects ? (
                   <div className="py-12 flex flex-col items-center justify-center text-center px-4 bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
                     <Loader2 size={26} className="text-indigo-400 animate-spin" />
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mt-2">Syncing vault data...</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.14em] mt-2">Loading projects...</p>
                   </div>
                 ) : filteredVaultProjects.length > 0 ? (
                   renderVaultNodes(null)
                 ) : (
                   <div className="py-12 flex flex-col items-center justify-center text-center px-4 bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
                     <SearchX size={20} className="text-slate-300 mb-3" />
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">No matching<br/>intelligence found</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.14em] leading-relaxed">No matching<br/>projects found</p>
                   </div>
                 )}
               </div>
@@ -729,20 +756,20 @@ const AppContent = () => {
 
         {/* Workspace */}
         <main className="flex-1 overflow-y-auto bg-slate-50/10 custom-scrollbar">
-          <div className={`${location.pathname === '/notes' ? 'max-w-[1400px]' : 'max-w-7xl'} mx-auto px-5 py-6 md:px-7 md:py-8 xl:px-8 xl:py-8 2xl:px-10 2xl:py-10`}>
+          <div className="max-w-7xl mx-auto px-5 py-6 md:px-7 md:py-8 xl:px-8 xl:py-8 2xl:px-10 2xl:py-10">
             {projectError ? (
-              <div className="min-h-[400px] flex flex-col items-center justify-center gap-3 text-[10px] font-black uppercase tracking-[0.3em] text-rose-400">
+              <div className="min-h-[400px] flex flex-col items-center justify-center gap-3 text-[10px] font-black uppercase tracking-[0.14em] text-rose-400">
                 {projectError}
               </div>
             ) : isLoadingProjects && !projects.length ? (
-              <div className="min-h-[400px] flex flex-col items-center justify-center gap-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
+              <div className="min-h-[400px] flex flex-col items-center justify-center gap-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
                 <Loader2 size={30} className="animate-spin text-indigo-400" />
-                Central vault initializing...
+                Loading project workspace...
               </div>
             ) : (
               <Suspense
                 fallback={
-                  <div className="min-h-[400px] flex flex-col items-center justify-center gap-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
+                  <div className="min-h-[400px] flex flex-col items-center justify-center gap-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
                     <Loader2 size={30} className="animate-spin text-indigo-400" />
                     Loading workspace...
                   </div>
@@ -751,25 +778,18 @@ const AppContent = () => {
                 <Routes>
                   <Route path="/" element={<Dashboard activeProjectId={activeProjectId} activeProject={activeProject} profile={profile} />} />
                   <Route
-                    path="/notes"
-                    element={
-                      <NotesPanel
-                        activeProjectId={activeProjectId}
-                        activeProject={activeProject}
-                        reportPermissions={reportPermissions}
-                      />
-                    }
-                  />
-                  <Route 
-                    path="/issues" 
+                    path="/issues"
                     element={
                       <IssueList
+                        key={`${activeProjectId}-${selectorKey}`}
                         activeProjectId={activeProjectId}
                         activeProject={activeProject}
                         refreshProjects={refreshProjects}
+                        currentUsername={profile?.username || sessionIdentity.username}
+                        currentUserRole={effectiveRole}
                         reportPermissions={reportPermissions}
                       />
-                    } 
+                    }
                   />
                   <Route
                     path="/profile"
@@ -884,10 +904,6 @@ const AppContent = () => {
                     }
                   />
                   <Route path="/methodologies" element={<MethodologyTracker activeProjectId={activeProjectId} activeProject={activeProject} />} />
-                  <Route 
-                    path="/export" 
-                    element={<ExportPanel externalProjects={projects} externalActiveId={activeProjectId} onProjectSelect={setActiveProjectId} />} 
-                  />
                 </Routes>
               </Suspense>
             )}
@@ -895,65 +911,92 @@ const AppContent = () => {
         </main>
       </div>
 
-      {/* Initialize Modal */}
-      {isAddingProject && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 animate-in fade-in duration-300">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsAddingProject(false)} />
-          <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
-            <div className="p-10 space-y-8">
-              <div className="flex items-center justify-between">
+      {/* Create Project Modal */}
+      {isAddingProject && isAdmin && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => { setIsAddingProject(false); setNewProject({ name: '', client: '' }); }} />
+          <div className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-100">
+                  <Briefcase size={16} className="text-white" />
+                </div>
                 <div>
-                  <h3 className="text-2xl font-black text-slate-800 tracking-tight">Initialize Vault</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">New Strategic Engagement</p>
+                  <h3 className="text-base font-bold text-slate-800">
+                    New Project
+                  </h3>
+                  <p className="text-xs text-slate-400">Add a vulnerability management scope</p>
                 </div>
-                <button onClick={() => setIsAddingProject(false)} className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-rose-500 transition-all">
-                  <X size={20} />
-                </button>
+              </div>
+              <button
+                onClick={() => { setIsAddingProject(false); setNewProject({ name: '', client: '' }); }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-600">Project Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Q3 Cloud Security Audit"
+                  value={newProject.name}
+                  autoFocus
+                  onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && newProject.name) handleCreateProject(); }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 focus:bg-white transition-all"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-600">Client / Organisation</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Acme Corp"
+                  value={newProject.client}
+                  onChange={(e) => setNewProject({ ...newProject, client: e.target.value })}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && newProject.name) handleCreateProject(); }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 focus:bg-white transition-all"
+                />
+                <p className="text-xs text-slate-400">Press Enter on either field to create quickly</p>
               </div>
 
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest px-1">Vault Identity</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Annual Cloud Audit"
-                    value={newProject.name}
-                    onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all shadow-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest px-1">Client Entity</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. OmniConsumer Corp"
-                    value={newProject.client}
-                    onChange={(e) => setNewProject({ ...newProject, client: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all shadow-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                <button onClick={() => setIsAddingProject(false)} className="flex-1 py-4 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">Cancel</button>
-                <button 
-                  onClick={handleCreateProject}
-                  disabled={!newProject.name || !newProject.client}
-                  className="flex-[2] py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50"
-                >
-                  {isCreatingProject ? 'Creating...' : 'Create Vault'}
-                </button>
-              </div>
-              {newProjectParentId && (
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                  Creating sub project
-                </p>
-              )}
               {projectError && (
-                <p className="text-[10px] font-black uppercase tracking-widest text-rose-500">
+                <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-600 text-xs font-medium px-3 py-2.5 rounded-xl">
+                  <AlertTriangle size={13} />
                   {projectError}
-                </p>
+                </div>
               )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50">
+              <button
+                onClick={() => { setIsAddingProject(false); setNewProject({ name: '', client: '' }); }}
+                className="flex-1 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-sm font-medium transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateProject}
+                disabled={!newProject.name || isCreatingProject}
+                className="flex-[2] py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold shadow-sm shadow-indigo-100 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isCreatingProject ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus size={15} />
+                    Create Project
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -1162,7 +1205,7 @@ const AppContent = () => {
                   disabled={accessSaving || !accessProjectId}
                   className="flex-[2] py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50"
                 >
-                  {accessSaving ? 'Saving...' : 'Add User'}
+                  {accessSaving ? 'Saving...' : 'Save Access'}
                 </button>
               </div>
             </div>
@@ -1176,9 +1219,9 @@ const AppContent = () => {
 };
 
 const App = () => (
-  <HashRouter>
+  <BrowserRouter>
     <AppContent />
-  </HashRouter>
+  </BrowserRouter>
 );
 
 export default App;

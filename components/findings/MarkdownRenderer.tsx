@@ -93,11 +93,11 @@ export const MediaArtifact: React.FC<{ type: 'image' | 'video'; url: string; alt
   const closeViewer = () => setIsOpen(false);
 
   return (
-    <div className="group relative my-8 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 transition-all hover:shadow-2xl">
-      <div className="flex items-center justify-between px-5 py-3 bg-white/90 backdrop-blur-sm border-b border-slate-100 absolute top-0 left-0 right-0 z-10 opacity-0 group-hover:opacity-100 transition-all">
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+    <div className="my-8 rounded-lg overflow-hidden border border-slate-200 bg-white">
+      <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
+        <span className="text-[10px] font-black text-[#8fa0bf] uppercase tracking-[0.2em] flex items-center gap-2">
           {type === 'image' ? <ImageIcon size={12} /> : <Video size={12} />}
-          Secured Evidence
+          Evidence
         </span>
         <div className="flex items-center gap-2">
           <button
@@ -124,7 +124,7 @@ export const MediaArtifact: React.FC<{ type: 'image' | 'video'; url: string; alt
         </div>
       )}
       
-      {alt && <div className="px-6 py-4 bg-white border-t border-slate-50 text-[12px] font-semibold text-slate-500 italic leading-relaxed">{alt}</div>}
+      {alt && <div className="px-6 py-3 bg-white border-t border-slate-100 text-[12px] font-semibold text-[#5a6f94] italic leading-relaxed">{alt}</div>}
 
       {isOpen && (
         <div className="fixed inset-0 z-[600] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-6">
@@ -333,7 +333,7 @@ export const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => 
       nodes.push(
         <p
           key={`${keyPrefix}-p-${lineIndex}`}
-          className="text-[15px] text-slate-800 leading-relaxed my-2"
+          className="text-[15px] [font-family:Georgia,Times,serif] text-[#12284b] leading-[1.62] my-2"
           dangerouslySetInnerHTML={{ __html: renderInline(line) }}
         />
       );
@@ -361,17 +361,17 @@ export const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => 
   };
   
   return (
-    <div className="prose-report space-y-1">
+    <div className="prose-report space-y-2">
       {blocks.map((block, index) => {
         if (block.type === 'code') {
           const { html, language } = highlightCode(block.content, block.language);
           return (
             <pre
               key={`code-${index}`}
-              className="code-block relative bg-slate-950 text-slate-100 rounded-xl border border-slate-800/80 overflow-hidden my-4"
+              className="code-block relative bg-[#040d24] text-slate-100 rounded-2xl border border-[#0f1f45] overflow-hidden my-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
               data-language={language}
             >
-              <div className="code-block-header flex items-center justify-between px-4 py-2 bg-slate-900/80 border-b border-slate-800/80 text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">
+              <div className="code-block-header flex items-center justify-between px-4 py-2 bg-[#091632] border-b border-[#16284f] text-[10px] font-black uppercase tracking-[0.25em] text-[#9db0d3]">
                 <span>{language}</span>
               </div>
               <code

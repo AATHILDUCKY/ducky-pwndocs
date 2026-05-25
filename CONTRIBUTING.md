@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to Ducky Pwn Docs!
+Thanks for contributing to Welford Systems VM!
 
 ## Setup
 - Install dependencies: `npm install`

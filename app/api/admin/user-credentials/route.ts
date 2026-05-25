@@ -34,9 +34,13 @@ type DeletePayload = {
 
 type Payload = UpsertPayload | PasswordPayload | DeletePayload;
 
-const isAdminSession = (request: NextRequest) => {
+const getSession = (request: NextRequest) => {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = verifySessionToken(token);
+  return verifySessionToken(token);
+};
+
+const isAdminSession = (request: NextRequest) => {
+  const session = getSession(request);
   if (!session) return false;
   if (session.role === 'Admin') return true;
 
@@ -114,7 +118,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Username is required.' }, { status: 400 });
     }
 
-    const deleted = removeAuthUser(payload.username.trim());
+    const normalized = payload.username.trim();
+    const actor = getSession(request);
+    const adminUsername = getAdminCredentials().username.trim().toLowerCase();
+    if (normalized.toLowerCase() === adminUsername) {
+      return NextResponse.json({ error: 'Primary admin account cannot be deleted.' }, { status: 400 });
+    }
+    if (actor && normalized.toLowerCase() === actor.username.trim().toLowerCase()) {
+      return NextResponse.json({ error: 'You cannot delete your own account.' }, { status: 400 });
+    }
+
+    const deleted = removeAuthUser(normalized);
     return NextResponse.json({ ok: deleted });
   }
 
