@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { getAppDb, DATA_DIRECTORY } from '@/lib/db';
 
 export type StoredProject = {
   id: string;
@@ -18,52 +19,147 @@ export type StoredProject = {
   parentId?: string | null;
 };
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const STORE_FILE = path.join(DATA_DIR, 'projects.json');
+const LEGACY_JSON_FILE = path.join(DATA_DIRECTORY, 'projects.json');
 
-const ensureStoreFile = () => {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-
-  if (!fs.existsSync(STORE_FILE)) {
-    fs.writeFileSync(STORE_FILE, JSON.stringify({ projects: [] }, null, 2), 'utf-8');
-  }
+type ProjectRow = {
+  id: string;
+  name: string;
+  client: string;
+  ownerUsername: string | null;
+  collaboratorUsernames: string | null;
+  issueCritical: number;
+  issueHigh: number;
+  issueMedium: number;
+  issueLow: number;
+  lastUpdate: string;
+  status: string;
+  parentId: string | null;
 };
 
-const readStore = (): { projects: StoredProject[] } => {
-  ensureStoreFile();
+let initialized = false;
+
+const db = () => {
+  const database = getAppDb();
+  if (!initialized) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id                     TEXT PRIMARY KEY,
+        name                   TEXT NOT NULL DEFAULT '',
+        client                 TEXT NOT NULL DEFAULT '',
+        ownerUsername          TEXT,
+        collaboratorUsernames  TEXT,
+        issueCritical          INTEGER NOT NULL DEFAULT 0,
+        issueHigh              INTEGER NOT NULL DEFAULT 0,
+        issueMedium            INTEGER NOT NULL DEFAULT 0,
+        issueLow               INTEGER NOT NULL DEFAULT 0,
+        lastUpdate             TEXT NOT NULL,
+        status                 TEXT NOT NULL DEFAULT 'active',
+        parentId               TEXT,
+        sortOrder              INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_projects_owner ON projects(ownerUsername);
+    `);
+    migrateFromJsonIfNeeded(database);
+    initialized = true;
+  }
+  return database;
+};
+
+const rowToProject = (row: ProjectRow): StoredProject => ({
+  id: row.id,
+  name: row.name,
+  client: row.client,
+  ownerUsername: row.ownerUsername ?? undefined,
+  collaboratorUsernames: row.collaboratorUsernames ? (JSON.parse(row.collaboratorUsernames) as string[]) : [],
+  issueCount: {
+    critical: row.issueCritical,
+    high: row.issueHigh,
+    medium: row.issueMedium,
+    low: row.issueLow,
+  },
+  lastUpdate: row.lastUpdate,
+  status: (row.status as StoredProject['status']) || 'active',
+  parentId: row.parentId ?? null,
+});
+
+const insertStmt = (database = getAppDb()) =>
+  database.prepare(`
+    INSERT OR REPLACE INTO projects
+      (id, name, client, ownerUsername, collaboratorUsernames,
+       issueCritical, issueHigh, issueMedium, issueLow,
+       lastUpdate, status, parentId, sortOrder)
+    VALUES
+      (@id, @name, @client, @ownerUsername, @collaboratorUsernames,
+       @issueCritical, @issueHigh, @issueMedium, @issueLow,
+       @lastUpdate, @status, @parentId, @sortOrder)
+  `);
+
+const projectToParams = (project: StoredProject, sortOrder: number) => ({
+  id: project.id,
+  name: project.name,
+  client: project.client,
+  ownerUsername: project.ownerUsername ?? null,
+  collaboratorUsernames: JSON.stringify(project.collaboratorUsernames || []),
+  issueCritical: project.issueCount.critical,
+  issueHigh: project.issueCount.high,
+  issueMedium: project.issueCount.medium,
+  issueLow: project.issueCount.low,
+  lastUpdate: project.lastUpdate,
+  status: project.status,
+  parentId: project.parentId ?? null,
+  sortOrder,
+});
+
+// Preserve original ordering (newest-first prepend) via an explicit sortOrder column.
+const nextSortOrder = (database: ReturnType<typeof getAppDb>): number => {
+  const row = database.prepare('SELECT MIN(sortOrder) AS min FROM projects').get() as { min: number | null };
+  return (row.min ?? 0) - 1;
+};
+
+const migrateFromJsonIfNeeded = (database: ReturnType<typeof getAppDb>) => {
+  const count = (database.prepare('SELECT COUNT(*) AS n FROM projects').get() as { n: number }).n;
+  if (count > 0) return;
+  if (!fs.existsSync(LEGACY_JSON_FILE)) return;
+
   try {
-    const raw = fs.readFileSync(STORE_FILE, 'utf-8');
+    const raw = fs.readFileSync(LEGACY_JSON_FILE, 'utf-8');
     const parsed = JSON.parse(raw) as { projects?: StoredProject[] };
-    return {
-      projects: Array.isArray(parsed.projects) ? parsed.projects : [],
-    };
-  } catch {
-    return { projects: [] };
-  }
-};
+    const projects = Array.isArray(parsed.projects) ? parsed.projects : [];
+    if (!projects.length) return;
 
-const writeStore = (payload: { projects: StoredProject[] }) => {
-  ensureStoreFile();
-  fs.writeFileSync(STORE_FILE, JSON.stringify(payload, null, 2), 'utf-8');
+    const insert = insertStmt(database);
+    const importAll = database.transaction((records: StoredProject[]) => {
+      // Keep the JSON file order: first item gets the highest sortOrder.
+      records.forEach((project, index) => {
+        insert.run(projectToParams(project, records.length - index));
+      });
+    });
+    importAll(projects);
+
+    fs.renameSync(LEGACY_JSON_FILE, `${LEGACY_JSON_FILE}.bak`);
+  } catch {
+    // Start empty if the legacy file is unreadable.
+  }
 };
 
 export const listProjects = (): StoredProject[] => {
-  return readStore().projects;
+  const rows = db()
+    .prepare('SELECT * FROM projects ORDER BY sortOrder DESC')
+    .all() as ProjectRow[];
+  return rows.map(rowToProject);
 };
 
 export const listProjectsForOwner = (ownerUsername: string): StoredProject[] => {
   const normalized = ownerUsername.trim().toLowerCase();
   if (!normalized) return [];
-  return readStore().projects.filter((project) => (project.ownerUsername || '').trim().toLowerCase() === normalized);
+  return listProjects().filter((project) => (project.ownerUsername || '').trim().toLowerCase() === normalized);
 };
 
 export const listProjectsForUser = (username: string): StoredProject[] => {
   const normalized = username.trim().toLowerCase();
   if (!normalized) return [];
 
-  return readStore().projects.filter((project) => {
+  return listProjects().filter((project) => {
     const owner = (project.ownerUsername || '').trim().toLowerCase();
     if (owner === normalized) return true;
     return (project.collaboratorUsernames || []).some((collaborator) => collaborator.trim().toLowerCase() === normalized);
@@ -82,7 +178,8 @@ export const canUserAccessProject = (project: StoredProject, username: string, i
 export const findProjectById = (id: string): StoredProject | null => {
   const normalized = id.trim();
   if (!normalized) return null;
-  return readStore().projects.find((project) => project.id === normalized) || null;
+  const row = db().prepare('SELECT * FROM projects WHERE id = ? LIMIT 1').get(normalized) as ProjectRow | undefined;
+  return row ? rowToProject(row) : null;
 };
 
 export const updateProjectIssueCounts = (
@@ -97,19 +194,14 @@ export const updateProjectIssueCounts = (
     if (issue.severity === 'Low') counts.low += 1;
   });
 
-  const now = new Date().toISOString();
-  const store = readStore();
-  writeStore({
-    projects: store.projects.map((project) =>
-      project.id === projectId
-        ? {
-            ...project,
-            issueCount: counts,
-            lastUpdate: now,
-          }
-        : project
-    ),
-  });
+  db()
+    .prepare(
+      `UPDATE projects SET
+         issueCritical = @critical, issueHigh = @high,
+         issueMedium = @medium, issueLow = @low, lastUpdate = @lastUpdate
+       WHERE id = @id`
+    )
+    .run({ ...counts, lastUpdate: new Date().toISOString(), id: projectId });
 };
 
 export const createProjectRecord = (payload: {
@@ -123,11 +215,12 @@ export const createProjectRecord = (payload: {
   lastUpdate?: string;
   status?: StoredProject['status'];
 }): StoredProject => {
+  const database = db();
   const now = new Date().toISOString();
   const id = payload.id?.trim() || `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const parentId = typeof payload.parentId === 'string' ? payload.parentId.trim() : '';
-  const store = readStore();
-  const existing = store.projects.find((entry) => entry.id === id);
+
+  const existing = findProjectById(id);
   if (existing) return existing;
 
   const project: StoredProject = {
@@ -142,18 +235,19 @@ export const createProjectRecord = (payload: {
     status: payload.status || 'active',
   };
 
-  writeStore({ projects: [project, ...store.projects] });
+  insertStmt(database).run(projectToParams(project, nextSortOrder(database)));
   return project;
 };
 
 export const deleteProjectRecord = (id: string): { deletedIds: string[] } => {
-  const store = readStore();
+  const database = db();
+  const all = listProjects();
   const idsToRemove = new Set<string>([id]);
   let changed = true;
 
   while (changed) {
     changed = false;
-    store.projects.forEach((project) => {
+    all.forEach((project) => {
       if (project.parentId && idsToRemove.has(project.parentId) && !idsToRemove.has(project.id)) {
         idsToRemove.add(project.id);
         changed = true;
@@ -161,8 +255,11 @@ export const deleteProjectRecord = (id: string): { deletedIds: string[] } => {
     });
   }
 
-  const nextProjects = store.projects.filter((project) => !idsToRemove.has(project.id));
-  writeStore({ projects: nextProjects });
+  const remove = database.prepare('DELETE FROM projects WHERE id = ?');
+  const removeAll = database.transaction((ids: string[]) => {
+    ids.forEach((entry) => remove.run(entry));
+  });
+  removeAll(Array.from(idsToRemove));
 
   return { deletedIds: Array.from(idsToRemove) };
 };
@@ -181,15 +278,12 @@ export const updateProjectCollaborators = (id: string, collaboratorUsernames: st
     }, new Map<string, string>()).values()
   );
 
-  const store = readStore();
-  let updated: StoredProject | null = null;
-  const projects = store.projects.map((project) => {
-    if (project.id !== normalizedId) return project;
-    updated = { ...project, collaboratorUsernames: deduped };
-    return updated;
-  });
+  const existing = findProjectById(normalizedId);
+  if (!existing) return null;
 
-  if (!updated) return null;
-  writeStore({ projects });
-  return updated;
+  db()
+    .prepare('UPDATE projects SET collaboratorUsernames = ? WHERE id = ?')
+    .run(JSON.stringify(deduped), normalizedId);
+
+  return { ...existing, collaboratorUsernames: deduped };
 };

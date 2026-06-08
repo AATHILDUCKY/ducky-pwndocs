@@ -1,40 +1,33 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Issue } from '@/types';
+import { getAppDb, DATA_DIRECTORY } from '@/lib/db';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const STORE_FILE = path.join(DATA_DIR, 'issues.json');
+const LEGACY_JSON_FILE = path.join(DATA_DIRECTORY, 'issues.json');
 
-type IssuesStore = {
-  issues: Record<string, Issue[]>;
+type IssueRow = {
+  data: string;
 };
 
-const ensureStoreFile = () => {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
+let initialized = false;
 
-  if (!fs.existsSync(STORE_FILE)) {
-    fs.writeFileSync(STORE_FILE, JSON.stringify({ issues: {} }, null, 2), 'utf-8');
+const db = () => {
+  const database = getAppDb();
+  if (!initialized) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS issues (
+        projectId TEXT NOT NULL,
+        id        TEXT NOT NULL,
+        updatedAt TEXT,
+        data      TEXT NOT NULL,
+        PRIMARY KEY (projectId, id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_issues_project ON issues(projectId);
+    `);
+    migrateFromJsonIfNeeded(database);
+    initialized = true;
   }
-};
-
-const readStore = (): IssuesStore => {
-  ensureStoreFile();
-  try {
-    const raw = fs.readFileSync(STORE_FILE, 'utf-8');
-    const parsed = JSON.parse(raw) as { issues?: Record<string, Issue[]> };
-    return {
-      issues: parsed.issues && typeof parsed.issues === 'object' ? parsed.issues : {},
-    };
-  } catch {
-    return { issues: {} };
-  }
-};
-
-const writeStore = (payload: IssuesStore) => {
-  ensureStoreFile();
-  fs.writeFileSync(STORE_FILE, JSON.stringify(payload, null, 2), 'utf-8');
+  return database;
 };
 
 const sortByUpdatedDesc = (items: Issue[]) =>
@@ -44,57 +37,85 @@ const sortByUpdatedDesc = (items: Issue[]) =>
     return bTime - aTime;
   });
 
+const insertStmt = (database = getAppDb()) =>
+  database.prepare(`
+    INSERT OR REPLACE INTO issues (projectId, id, updatedAt, data)
+    VALUES (@projectId, @id, @updatedAt, @data)
+  `);
+
+const migrateFromJsonIfNeeded = (database: ReturnType<typeof getAppDb>) => {
+  const count = (database.prepare('SELECT COUNT(*) AS n FROM issues').get() as { n: number }).n;
+  if (count > 0) return;
+  if (!fs.existsSync(LEGACY_JSON_FILE)) return;
+
+  try {
+    const raw = fs.readFileSync(LEGACY_JSON_FILE, 'utf-8');
+    const parsed = JSON.parse(raw) as { issues?: Record<string, Issue[]> };
+    const grouped = parsed.issues && typeof parsed.issues === 'object' ? parsed.issues : {};
+
+    const insert = insertStmt(database);
+    const importAll = database.transaction((map: Record<string, Issue[]>) => {
+      for (const [projectId, issues] of Object.entries(map)) {
+        for (const issue of issues || []) {
+          insert.run({
+            projectId: projectId.trim(),
+            id: issue.id,
+            updatedAt: issue.updatedAt || '',
+            data: JSON.stringify(issue),
+          });
+        }
+      }
+    });
+    importAll(grouped);
+
+    fs.renameSync(LEGACY_JSON_FILE, `${LEGACY_JSON_FILE}.bak`);
+  } catch {
+    // Start empty if the legacy file is unreadable.
+  }
+};
+
+const readProjectIssues = (projectId: string): Issue[] => {
+  const rows = db()
+    .prepare('SELECT data FROM issues WHERE projectId = ?')
+    .all(projectId) as IssueRow[];
+  return rows.map((row) => JSON.parse(row.data) as Issue);
+};
+
 export const listProjectIssues = (projectId: string): Issue[] => {
   if (!projectId?.trim()) return [];
-  const store = readStore();
-  return sortByUpdatedDesc(store.issues[projectId] || []);
+  return sortByUpdatedDesc(readProjectIssues(projectId.trim()));
 };
 
 export const upsertProjectIssue = (projectId: string, issue: Issue): Issue[] => {
-  const store = readStore();
-  const existing = store.issues[projectId] || [];
+  const normalized = projectId.trim();
   const nextIssue: Issue = {
     ...issue,
     updatedAt: issue.updatedAt || new Date().toISOString(),
   };
 
-  const issues = sortByUpdatedDesc([
-    nextIssue,
-    ...existing.filter((entry) => entry.id !== nextIssue.id),
-  ]);
-
-  writeStore({
-    issues: {
-      ...store.issues,
-      [projectId]: issues,
-    },
+  insertStmt(db()).run({
+    projectId: normalized,
+    id: nextIssue.id,
+    updatedAt: nextIssue.updatedAt || '',
+    data: JSON.stringify(nextIssue),
   });
 
-  return issues;
+  return listProjectIssues(normalized);
 };
 
 export const deleteProjectIssue = (projectId: string, issueId: string): Issue[] => {
-  const store = readStore();
-  const existing = store.issues[projectId] || [];
-  const issues = existing.filter((issue) => issue.id !== issueId);
-
-  writeStore({
-    issues: {
-      ...store.issues,
-      [projectId]: issues,
-    },
-  });
-
-  return sortByUpdatedDesc(issues);
+  const normalized = projectId.trim();
+  db().prepare('DELETE FROM issues WHERE projectId = ? AND id = ?').run(normalized, issueId);
+  return listProjectIssues(normalized);
 };
 
 export const removeIssuesForProjects = (projectIds: string[]) => {
-  if (!projectIds.length) return;
+  const ids = projectIds.map((entry) => entry.trim()).filter(Boolean);
+  if (!ids.length) return;
 
-  const store = readStore();
-  const nextIssues = { ...store.issues };
-  projectIds.forEach((id) => {
-    delete nextIssues[id];
+  const remove = db().prepare('DELETE FROM issues WHERE projectId = ?');
+  const removeAll = db().transaction((list: string[]) => {
+    list.forEach((id) => remove.run(id));
   });
-  writeStore({ issues: nextIssues });
+  removeAll(ids);
 };

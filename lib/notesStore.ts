@@ -1,40 +1,33 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Note } from '@/types';
+import { getAppDb, DATA_DIRECTORY } from '@/lib/db';
 
-type NotesStore = {
-  notes: Record<string, Note[]>;
+const LEGACY_JSON_FILE = path.join(DATA_DIRECTORY, 'notes.json');
+
+type NoteRow = {
+  data: string;
 };
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const STORE_FILE = path.join(DATA_DIR, 'notes.json');
+let initialized = false;
 
-const ensureStoreFile = () => {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+const db = () => {
+  const database = getAppDb();
+  if (!initialized) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS notes (
+        projectId TEXT NOT NULL,
+        id        TEXT NOT NULL,
+        updatedAt TEXT,
+        data      TEXT NOT NULL,
+        PRIMARY KEY (projectId, id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(projectId);
+    `);
+    migrateFromJsonIfNeeded(database);
+    initialized = true;
   }
-
-  if (!fs.existsSync(STORE_FILE)) {
-    fs.writeFileSync(STORE_FILE, JSON.stringify({ notes: {} }, null, 2), 'utf-8');
-  }
-};
-
-const readStore = (): NotesStore => {
-  ensureStoreFile();
-  try {
-    const raw = fs.readFileSync(STORE_FILE, 'utf-8');
-    const parsed = JSON.parse(raw) as { notes?: Record<string, Note[]> };
-    return {
-      notes: parsed.notes && typeof parsed.notes === 'object' ? parsed.notes : {},
-    };
-  } catch {
-    return { notes: {} };
-  }
-};
-
-const writeStore = (payload: NotesStore) => {
-  ensureStoreFile();
-  fs.writeFileSync(STORE_FILE, JSON.stringify(payload, null, 2), 'utf-8');
+  return database;
 };
 
 const sortByUpdatedDesc = (notes: Note[]): Note[] => {
@@ -45,11 +38,54 @@ const sortByUpdatedDesc = (notes: Note[]): Note[] => {
   });
 };
 
+const insertStmt = (database = getAppDb()) =>
+  database.prepare(`
+    INSERT OR REPLACE INTO notes (projectId, id, updatedAt, data)
+    VALUES (@projectId, @id, @updatedAt, @data)
+  `);
+
+const migrateFromJsonIfNeeded = (database: ReturnType<typeof getAppDb>) => {
+  const count = (database.prepare('SELECT COUNT(*) AS n FROM notes').get() as { n: number }).n;
+  if (count > 0) return;
+  if (!fs.existsSync(LEGACY_JSON_FILE)) return;
+
+  try {
+    const raw = fs.readFileSync(LEGACY_JSON_FILE, 'utf-8');
+    const parsed = JSON.parse(raw) as { notes?: Record<string, Note[]> };
+    const grouped = parsed.notes && typeof parsed.notes === 'object' ? parsed.notes : {};
+
+    const insert = insertStmt(database);
+    const importAll = database.transaction((map: Record<string, Note[]>) => {
+      for (const [projectId, notes] of Object.entries(map)) {
+        for (const note of notes || []) {
+          insert.run({
+            projectId: projectId.trim(),
+            id: note.id,
+            updatedAt: note.updatedAt || '',
+            data: JSON.stringify(note),
+          });
+        }
+      }
+    });
+    importAll(grouped);
+
+    fs.renameSync(LEGACY_JSON_FILE, `${LEGACY_JSON_FILE}.bak`);
+  } catch {
+    // Start empty if the legacy file is unreadable.
+  }
+};
+
+const readProjectNotes = (projectId: string): Note[] => {
+  const rows = db()
+    .prepare('SELECT data FROM notes WHERE projectId = ?')
+    .all(projectId) as NoteRow[];
+  return rows.map((row) => JSON.parse(row.data) as Note);
+};
+
 export const listProjectNotes = (projectId: string): Note[] => {
   const normalized = projectId.trim();
   if (!normalized) return [];
-  const store = readStore();
-  return sortByUpdatedDesc(store.notes[normalized] || []);
+  return sortByUpdatedDesc(readProjectNotes(normalized));
 };
 
 export const upsertProjectNote = (projectId: string, note: Note): Note[] => {
@@ -64,18 +100,14 @@ export const upsertProjectNote = (projectId: string, note: Note): Note[] => {
     updatedAt: note.updatedAt || now,
   };
 
-  const store = readStore();
-  const existing = store.notes[normalized] || [];
-  const notes = sortByUpdatedDesc([safeNote, ...existing.filter((entry) => entry.id !== safeNote.id)]);
-
-  writeStore({
-    notes: {
-      ...store.notes,
-      [normalized]: notes,
-    },
+  insertStmt(db()).run({
+    projectId: normalized,
+    id: safeNote.id,
+    updatedAt: safeNote.updatedAt || '',
+    data: JSON.stringify(safeNote),
   });
 
-  return notes;
+  return listProjectNotes(normalized);
 };
 
 export const deleteProjectNote = (projectId: string, noteId: string): Note[] => {
@@ -83,30 +115,17 @@ export const deleteProjectNote = (projectId: string, noteId: string): Note[] => 
   const targetId = noteId.trim();
   if (!normalized || !targetId) return [];
 
-  const store = readStore();
-  const existing = store.notes[normalized] || [];
-  const notes = sortByUpdatedDesc(existing.filter((note) => note.id !== targetId));
-
-  writeStore({
-    notes: {
-      ...store.notes,
-      [normalized]: notes,
-    },
-  });
-
-  return notes;
+  db().prepare('DELETE FROM notes WHERE projectId = ? AND id = ?').run(normalized, targetId);
+  return listProjectNotes(normalized);
 };
 
 export const removeNotesForProjects = (projectIds: string[]) => {
-  if (!projectIds.length) return;
-  const ids = new Set(projectIds.map((entry) => entry.trim()).filter(Boolean));
-  if (!ids.size) return;
+  const ids = projectIds.map((entry) => entry.trim()).filter(Boolean);
+  if (!ids.length) return;
 
-  const store = readStore();
-  const notes = { ...store.notes };
-  ids.forEach((id) => {
-    delete notes[id];
+  const remove = db().prepare('DELETE FROM notes WHERE projectId = ?');
+  const removeAll = db().transaction((list: string[]) => {
+    list.forEach((id) => remove.run(id));
   });
-
-  writeStore({ notes });
+  removeAll(ids);
 };
