@@ -2,218 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* MDXEditor styling to feel closer to Obsidian/Notion */
-.mdxeditor-root {
-  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-  background: #ffffff;
-}
-
-.mdxeditor-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
-}
-
-.mdxeditor-content-editable {
-  padding: 24px 28px 40px;
-  min-height: 520px;
-  color: #0f172a;
-  line-height: 1.7;
-  font-size: 15px;
-}
-
-.mdxeditor-content-editable h1,
-.mdxeditor-content-editable h2,
-.mdxeditor-content-editable h3,
-.mdxeditor-content-editable h4 {
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  margin-top: 1.2em;
-  margin-bottom: 0.4em;
-}
-
-.mdxeditor-content-editable h1 { font-size: 28px; }
-.mdxeditor-content-editable h2 { font-size: 22px; }
-.mdxeditor-content-editable h3 { font-size: 18px; }
-.mdxeditor-content-editable h4 { font-size: 16px; }
-
-.mdxeditor-content-editable p {
-  margin: 0.6em 0;
-}
-
-.mdxeditor-content-editable ul,
-.mdxeditor-content-editable ol {
-  padding-left: 1.2em;
-  margin: 0.6em 0;
-}
-
-.mdxeditor-content-editable blockquote {
-  border-left: 3px solid #cbd5f5;
-  background: #f8fafc;
-  padding: 0.6em 1em;
-  margin: 0.8em 0;
-  color: #475569;
-}
-
-.mdxeditor-content-editable code {
-  background: #e2e8f0;
-  padding: 0 4px;
-  border-radius: 4px;
-  font-size: 0.92em;
-}
-
-.mdxeditor-content-editable pre {
-  background: linear-gradient(180deg, #0b1222 0%, #0f172a 100%);
-  color: #e2e8f0;
-  padding: 14px 18px 16px;
-  border-radius: 12px;
-  overflow-x: auto;
-  border: 1px solid #1e293b;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.mdxeditor-content-editable pre code {
-  display: block;
-  padding: 0;
-  background: transparent;
-  font-size: 0.92em;
-  line-height: 1.6;
-  color: inherit;
-}
-
-.mdxeditor-content-editable pre::-webkit-scrollbar {
-  height: 8px;
-}
-.mdxeditor-content-editable pre::-webkit-scrollbar-track {
-  background: transparent;
-}
-.mdxeditor-content-editable pre::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.35);
-  border-radius: 999px;
-}
-
-.mdxeditor-content-editable code {
-  font-family: "JetBrains Mono", "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-
-/* CodeMirror block styling (syntax highlight) */
-.mdxeditor-root .cm-editor {
-  font-family: "JetBrains Mono", "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  background: #0b1222;
-  color: #e2e8f0;
-  border-radius: 12px;
-  border: none;
-  box-shadow: none;
-  position: relative;
-  padding: 10px 12px 12px;
-  padding-top: 28px;
-}
-
-.mdxeditor-root .cm-gutters {
-  display: none;
-}
-
-.mdxeditor-root .cm-line {
-  font-size: 13px;
-}
-
-.mdxeditor-root .cm-content {
-  padding: 0;
-}
-
-.mdxeditor-root .cm-activeLine {
-  background: rgba(148, 163, 184, 0.08);
-}
-
-.mdxeditor-root .cm-keyword { color: #60a5fa; }
-.mdxeditor-root .cm-string { color: #a7f3d0; }
-.mdxeditor-root .cm-number { color: #facc15; }
-.mdxeditor-root .cm-comment { color: #94a3b8; font-style: italic; }
-.mdxeditor-root .cm-variableName { color: #fda4af; }
-.mdxeditor-root .cm-typeName { color: #c4b5fd; }
-.mdxeditor-root .cm-operator { color: #f8fafc; }
-
-/* Code block copy button */
-.code-copy-button {
-  position: absolute;
-  top: 6px;
-  right: 10px;
-  padding: 4px 10px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: #e2e8f0;
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 999px;
-  cursor: pointer;
-}
-
-.code-copy-button:hover {
-  background: rgba(59, 130, 246, 0.25);
-  border-color: rgba(99, 102, 241, 0.5);
-}
-
-.mdxeditor-content-editable hr {
-  border: none;
-  border-top: 1px solid #e2e8f0;
-  margin: 1.2em 0;
-}
-
-/* Highlight.js theme (kept in sync with PDF output) */
-.hljs {
-  color: #e2e8f0;
-  background: transparent;
-}
-.hljs-comment,
-.hljs-quote {
-  color: #94a3b8;
-  font-style: italic;
-}
-.hljs-keyword,
-.hljs-selector-tag,
-.hljs-literal,
-.hljs-name,
-.hljs-built_in,
-.hljs-type {
-  color: #60a5fa;
-}
-.hljs-string,
-.hljs-title,
-.hljs-section,
-.hljs-attribute,
-.hljs-symbol,
-.hljs-bullet,
-.hljs-addition {
-  color: #a7f3d0;
-}
-.hljs-number,
-.hljs-meta,
-.hljs-link {
-  color: #facc15;
-}
-.hljs-function,
-.hljs-title.function_ {
-  color: #fda4af;
-}
-.hljs-params,
-.hljs-variable,
-.hljs-template-variable {
-  color: #c4b5fd;
-}
-.hljs-deletion {
-  color: #fca5a5;
-}
-.hljs-operator,
-.hljs-punctuation,
-.hljs-subst {
-  color: #f8fafc;
-}
-
 /* Global UI system */
 :root {
   --ui-bg: #f4f7fb;
@@ -230,10 +18,7 @@ body {
   margin: 0;
   padding: 0;
   color: var(--ui-text);
-  background:
-    radial-gradient(1200px 500px at 20% -10%, rgba(59, 130, 246, 0.08), transparent 55%),
-    radial-gradient(1000px 500px at 90% 0%, rgba(99, 102, 241, 0.08), transparent 45%),
-    var(--ui-bg);
+  background: var(--ui-bg);
   font-family: var(--font-inter), "Inter", "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.5;
@@ -254,8 +39,11 @@ body {
 .tracking-\[0\.2em\]  { letter-spacing: 0.12em; }
 
 /* Slightly calmer card radii for modern consistency */
-.rounded-\[2\.5rem\] { border-radius: 2rem; }
-.rounded-\[3rem\]    { border-radius: 2.25rem; }
+.rounded-\[2rem\],
+.rounded-\[2\.5rem\],
+.rounded-\[3rem\] {
+  border-radius: 1rem;
+}
 
 /* Inter-friendly weight normalization across the app */
 .font-black   { font-weight: 700; }
@@ -299,22 +87,39 @@ body {
 .stagger-5 { animation-delay: 0.25s; }
 .stagger-6 { animation-delay: 0.30s; }
 
-/* ── Tooltip polish (recharts) ───────────────────────────────── */
-.recharts-tooltip-wrapper .recharts-default-tooltip {
-  border-radius: 12px !important;
-  border: none !important;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12) !important;
-  font-size: 12px !important;
-  font-family: var(--font-inter), "Inter", sans-serif !important;
-}
-
 /* ── Card hover lift ─────────────────────────────────────────── */
 .card-lift {
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  transition: box-shadow 0.15s ease;
 }
 .card-lift:hover {
-  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.10);
-  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+
+@media (max-width: 1023px) {
+  header {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  header .max-w-md {
+    display: none;
+  }
+
+  nav {
+    top: 4rem;
+    overflow-x: auto;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  nav > div:first-child {
+    min-width: max-content;
+  }
+
+  main .max-w-7xl {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
 }
 
 /* ── Status dot pulse variants ───────────────────────────────── */

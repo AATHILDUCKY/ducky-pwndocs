@@ -30,9 +30,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
 
-  const isAdmin = session.role === 'Admin';
-  const projects = isAdmin ? listProjects() : listProjectsForUser(session.username);
-  return NextResponse.json({ projects });
+  try {
+    const isAdmin = session.role === 'Admin';
+    const projects = isAdmin ? listProjects() : listProjectsForUser(session.username);
+    return NextResponse.json({ projects });
+  } catch (error) {
+    console.error('Failed to read projects', error);
+    return NextResponse.json({ error: 'Project data store is unavailable. Check APP_DATA_DIR permissions.' }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -67,17 +72,23 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const project = createProjectRecord({
-    name: payload.name,
-    client: payload.client?.trim() || '',
-    ownerUsername: session.username,
-    collaboratorUsernames: payload.collaboratorUsernames,
-    parentId: parentId || null,
-    id: payload.id,
-    issueCount: payload.issueCount,
-    lastUpdate: payload.lastUpdate,
-    status: payload.status,
-  });
+  let project;
+  try {
+    project = createProjectRecord({
+      name: payload.name,
+      client: payload.client?.trim() || '',
+      ownerUsername: session.username,
+      collaboratorUsernames: payload.collaboratorUsernames,
+      parentId: parentId || null,
+      id: payload.id,
+      issueCount: payload.issueCount,
+      lastUpdate: payload.lastUpdate,
+      status: payload.status,
+    });
+  } catch (error) {
+    console.error('Failed to create project', error);
+    return NextResponse.json({ error: 'Unable to create project. Check APP_DATA_DIR permissions.' }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true, project }, { status: 201 });
 }

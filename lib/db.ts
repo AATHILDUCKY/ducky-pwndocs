@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = process.env.APP_DATA_DIR?.trim()
+  ? path.resolve(process.env.APP_DATA_DIR.trim())
+  : path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'app.db');
 
 let dbInstance: Database.Database | null = null;

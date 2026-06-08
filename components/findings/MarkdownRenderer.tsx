@@ -1,40 +1,11 @@
-
 import React, { useMemo, useState } from 'react';
-import { Download, ImageIcon, Video, PlayCircle, Maximize2, Minus, Plus, X } from 'lucide-react';
-import hljs from 'highlight.js';
+import { Download, ImageIcon, Maximize2, Minus, PlayCircle, Plus, Video, X } from 'lucide-react';
 
 type MarkdownBlock =
   | { type: 'text'; content: string }
   | { type: 'code'; content: string; language?: string };
 
-const MEDIA_PATTERN = /(\[image:.*?\]|\[video:.*?\]|\[image\|.*?\]|\[video\|.*?\])/g;
-
-const normalizeLanguage = (value?: string) => {
-  if (!value) return 'text';
-  const token = value.trim().split(/\s+/)[0].toLowerCase();
-  if (!token) return 'text';
-  if (token === 'golang') return 'go';
-  if (token === 'c++') return 'cpp';
-  if (token === 'sh') return 'bash';
-  return token;
-};
-
-const highlightCode = (content: string, language?: string) => {
-  const hasExplicit = Boolean(language && language.trim());
-  const normalized = normalizeLanguage(language);
-
-  if (!content) {
-    return { html: '', language: hasExplicit ? normalized : 'text' };
-  }
-
-  if (hasExplicit && hljs.getLanguage(normalized)) {
-    const highlighted = hljs.highlight(content, { language: normalized, ignoreIllegals: true });
-    return { html: highlighted.value, language: normalized };
-  }
-
-  const auto = hljs.highlightAuto(content);
-  return { html: auto.value, language: hasExplicit ? normalized : normalizeLanguage(auto.language) };
-};
+const MEDIA_PATTERN = /(\[image:.*?\]|\[video:.*?\]|\[image\|.*?\|.*?\]|\[video\|.*?\|.*?\])/g;
 
 const parseCodeBlocks = (content: string): MarkdownBlock[] => {
   const normalized = content.replace(/\r\n/g, '\n');
@@ -42,155 +13,128 @@ const parseCodeBlocks = (content: string): MarkdownBlock[] => {
   let cursor = 0;
 
   while (cursor < normalized.length) {
-    const fenceStart = normalized.indexOf('```', cursor);
-    if (fenceStart === -1) {
+    const start = normalized.indexOf('```', cursor);
+    if (start === -1) {
       const tail = normalized.slice(cursor);
       if (tail) blocks.push({ type: 'text', content: tail });
       break;
     }
 
-    if (fenceStart > cursor) {
-      blocks.push({ type: 'text', content: normalized.slice(cursor, fenceStart) });
-    }
+    if (start > cursor) blocks.push({ type: 'text', content: normalized.slice(cursor, start) });
 
-    const fenceEnd = normalized.indexOf('```', fenceStart + 3);
-    const fenceBody = normalized.slice(fenceStart + 3, fenceEnd === -1 ? normalized.length : fenceEnd);
-    const newlineIndex = fenceBody.indexOf('\n');
-    const language = newlineIndex === -1 ? fenceBody.trim() : fenceBody.slice(0, newlineIndex).trim();
-    const rawBody = newlineIndex === -1 ? '' : fenceBody.slice(newlineIndex + 1);
-    const body = rawBody.replace(/\n$/, '');
-
-    blocks.push({ type: 'code', content: body, language });
-    cursor = fenceEnd === -1 ? normalized.length : fenceEnd + 3;
+    const end = normalized.indexOf('```', start + 3);
+    const body = normalized.slice(start + 3, end === -1 ? normalized.length : end);
+    const newline = body.indexOf('\n');
+    blocks.push({
+      type: 'code',
+      language: newline === -1 ? body.trim() : body.slice(0, newline).trim(),
+      content: newline === -1 ? '' : body.slice(newline + 1).replace(/\n$/, ''),
+    });
+    cursor = end === -1 ? normalized.length : end + 3;
   }
 
   return blocks;
 };
 
+const renderInline = (value: string, keyPrefix: string): React.ReactNode[] => {
+  const tokens = value.split(/(\*\*.*?\*\*|__.*?__|\*.*?\*|_.*?_|~~.*?~~|`.*?`|\[.*?\]\(.*?\))/g);
+
+  return tokens.filter(Boolean).map((token, index) => {
+    const key = `${keyPrefix}-${index}`;
+    const link = token.match(/^\[(.*?)\]\((.*?)\)$/);
+    if (link) {
+      return (
+        <a key={key} href={link[2]} target="_blank" rel="noreferrer" className="text-indigo-600 underline underline-offset-4">
+          {link[1]}
+        </a>
+      );
+    }
+    if ((token.startsWith('**') && token.endsWith('**')) || (token.startsWith('__') && token.endsWith('__'))) {
+      return <strong key={key} className="font-bold text-slate-900">{token.slice(2, -2)}</strong>;
+    }
+    if ((token.startsWith('*') && token.endsWith('*')) || (token.startsWith('_') && token.endsWith('_'))) {
+      return <em key={key} className="text-slate-700">{token.slice(1, -1)}</em>;
+    }
+    if (token.startsWith('~~') && token.endsWith('~~')) {
+      return <del key={key} className="text-slate-400">{token.slice(2, -2)}</del>;
+    }
+    if (token.startsWith('`') && token.endsWith('`')) {
+      return <code key={key} className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[0.9em] text-indigo-700">{token.slice(1, -1)}</code>;
+    }
+    return <React.Fragment key={key}>{token}</React.Fragment>;
+  });
+};
+
 export const MediaArtifact: React.FC<{ type: 'image' | 'video'; url: string; alt?: string }> = ({ type, url, alt }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOrigin, setDragOrigin] = useState({ x: 0, y: 0 });
 
-  const handleDownload = (e: React.MouseEvent) => {
-    e.preventDefault();
+  const download = (event: React.MouseEvent) => {
+    event.preventDefault();
     const link = document.createElement('a');
     link.href = url;
-    link.download = alt || `vanguard-evidence-${Date.now()}`;
+    link.download = alt || `evidence-${Date.now()}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const openViewer = () => {
-    setZoom(1);
-    setOffset({ x: 0, y: 0 });
-    setIsOpen(true);
-  };
-
-  const closeViewer = () => setIsOpen(false);
-
   return (
-    <div className="my-8 rounded-lg overflow-hidden border border-slate-200 bg-white">
-      <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
-        <span className="text-[10px] font-black text-[#8fa0bf] uppercase tracking-[0.2em] flex items-center gap-2">
+    <div className="my-5 overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-3 py-2">
+        <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
           {type === 'image' ? <ImageIcon size={12} /> : <Video size={12} />}
           Evidence
         </span>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={openViewer}
-            className="p-2 bg-white text-slate-500 rounded-md hover:bg-slate-100 transition-all shadow-sm border border-slate-200"
-            title="Open large view"
-          >
-            <Maximize2 size={12} />
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => setIsOpen(true)} className="rounded-md p-1.5 text-slate-500 hover:bg-white" title="Open large view">
+            <Maximize2 size={13} />
           </button>
-          <button onClick={handleDownload} className="p-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-all shadow-lg flex items-center gap-2 text-[9px] font-black uppercase tracking-widest">
-            <Download size={14} /> Download
+          <button type="button" onClick={download} className="rounded-md p-1.5 text-slate-500 hover:bg-white" title="Download">
+            <Download size={13} />
           </button>
         </div>
       </div>
-      
-      {type === 'image' ? (
-        <div className="w-full bg-white p-3 flex items-center justify-center">
-          <img src={url} alt={alt} className="w-full h-auto object-contain max-h-[560px]" />
-        </div>
-      ) : (
-        <div className="w-full bg-white p-3 flex items-center justify-center relative">
-          <video src={url} controls className="w-full max-h-[560px] object-contain bg-black" />
-          <PlayCircle size={48} className="text-white opacity-40 absolute pointer-events-none" />
-        </div>
-      )}
-      
-      {alt && <div className="px-6 py-3 bg-white border-t border-slate-100 text-[12px] font-semibold text-[#5a6f94] italic leading-relaxed">{alt}</div>}
+
+      <div className="bg-white p-3">
+        {type === 'image' ? (
+          <img src={url} alt={alt || 'Evidence'} className="max-h-[460px] w-full object-contain" />
+        ) : (
+          <div className="relative">
+            <video src={url} controls className="max-h-[460px] w-full bg-black object-contain" />
+            <PlayCircle size={42} className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white/40" />
+          </div>
+        )}
+      </div>
+      {alt && <p className="border-t border-slate-100 px-4 py-2 text-xs text-slate-500">{alt}</p>}
 
       {isOpen && (
-        <div className="fixed inset-0 z-[600] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="absolute inset-0" onClick={closeViewer} />
-          <div className="relative z-10 w-full max-w-6xl max-h-[90vh] bg-black/40 border border-white/10 rounded-lg overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 bg-black/70 text-white">
-              <div className="text-[10px] font-black uppercase tracking-widest">
-                {type === 'image' ? 'Image' : 'Video'} Viewer
-              </div>
-              <div className="flex items-center gap-2">
+        <div className="fixed inset-0 z-[600] flex items-center justify-center bg-slate-950/85 p-5">
+          <button className="absolute inset-0 cursor-default" onClick={() => setIsOpen(false)} aria-label="Close viewer" />
+          <div className="relative z-10 max-h-[90vh] w-full max-w-6xl overflow-hidden rounded-lg bg-black">
+            <div className="flex items-center justify-between bg-black px-3 py-2 text-white">
+              <span className="text-xs font-bold uppercase tracking-widest">{type}</span>
+              <div className="flex items-center gap-1">
                 {type === 'image' && (
                   <>
-                    <button
-                      onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
-                      className="p-1.5 rounded-md bg-white/10 hover:bg-white/20"
-                      title="Zoom out"
-                    >
-                      <Minus size={12} />
+                    <button type="button" onClick={() => setZoom((value) => Math.max(0.5, value - 0.25))} className="rounded p-1.5 hover:bg-white/10" title="Zoom out">
+                      <Minus size={13} />
                     </button>
-                    <button
-                      onClick={() => setZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))}
-                      className="p-1.5 rounded-md bg-white/10 hover:bg-white/20"
-                      title="Zoom in"
-                    >
-                      <Plus size={12} />
+                    <button type="button" onClick={() => setZoom((value) => Math.min(3, value + 0.25))} className="rounded p-1.5 hover:bg-white/10" title="Zoom in">
+                      <Plus size={13} />
                     </button>
                   </>
                 )}
-                <button
-                  onClick={closeViewer}
-                  className="p-1.5 rounded-md bg-white/10 hover:bg-white/20"
-                  title="Close"
-                >
-                  <X size={12} />
+                <button type="button" onClick={() => setIsOpen(false)} className="rounded p-1.5 hover:bg-white/10" title="Close">
+                  <X size={13} />
                 </button>
               </div>
             </div>
-            <div
-              className="flex items-center justify-center bg-black max-h-[80vh] overflow-hidden"
-              onMouseMove={(event) => {
-                if (!isDragging || zoom <= 1) return;
-                const deltaX = event.clientX - dragOrigin.x;
-                const deltaY = event.clientY - dragOrigin.y;
-                setOffset((prev) => ({ x: prev.x + deltaX, y: prev.y + deltaY }));
-                setDragOrigin({ x: event.clientX, y: event.clientY });
-              }}
-              onMouseUp={() => setIsDragging(false)}
-              onMouseLeave={() => setIsDragging(false)}
-            >
+            <div className="flex max-h-[82vh] items-center justify-center overflow-auto bg-black">
               {type === 'image' ? (
-                <img
-                  src={url}
-                  alt={alt}
-                  className={`max-h-[80vh] object-contain ${zoom > 1 ? 'cursor-grab active:cursor-grabbing select-none' : ''}`}
-                  style={{
-                    transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-                    transformOrigin: 'center center',
-                  }}
-                  onMouseDown={(event) => {
-                    if (zoom <= 1) return;
-                    setIsDragging(true);
-                    setDragOrigin({ x: event.clientX, y: event.clientY });
-                  }}
-                />
+                <img src={url} alt={alt || 'Evidence'} className="max-h-[82vh] object-contain" style={{ transform: `scale(${zoom})` }} />
               ) : (
-                <video src={url} controls className="w-full max-h-[80vh] object-contain bg-black" />
+                <video src={url} controls className="max-h-[82vh] w-full bg-black object-contain" />
               )}
             </div>
           </div>
@@ -201,151 +145,92 @@ export const MediaArtifact: React.FC<{ type: 'image' | 'video'; url: string; alt
 };
 
 export const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
+  const blocks = useMemo(() => parseCodeBlocks(content || ''), [content]);
   if (!content) return null;
-  const blocks = useMemo(() => parseCodeBlocks(content), [content]);
-
-  const renderInline = (line: string) => {
-    let processed = line.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
-    processed = processed.replace(/__(.*?)__/g, '<strong class="font-bold text-slate-900">$1</strong>');
-    processed = processed.replace(/\*(.*?)\*/g, '<em class="italic text-slate-700">$1</em>');
-    processed = processed.replace(/_(.*?)_/g, '<em class="italic text-slate-700">$1</em>');
-    processed = processed.replace(/~~(.*?)~~/g, '<del class="text-slate-400">$1</del>');
-    processed = processed.replace(/`(.*?)`/g, '<code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-indigo-600 text-[0.9em] whitespace-pre-wrap">$1</code>');
-    processed = processed.replace(
-      /\[(.*?)\]\((.*?)\)/g,
-      '<a href="$2" target="_blank" rel="noreferrer" class="text-indigo-600 underline decoration-indigo-200 underline-offset-4 hover:text-indigo-700">$1</a>'
-    );
-    return processed;
-  };
-
-  const headingStyles: Record<number, string> = {
-    1: 'text-3xl md:text-4xl font-black tracking-tight text-slate-900 mt-6 mb-3',
-    2: 'text-2xl md:text-3xl font-black tracking-tight text-slate-900 mt-5 mb-3',
-    3: 'text-xl md:text-2xl font-bold tracking-tight text-slate-900 mt-4 mb-2',
-    4: 'text-lg font-bold text-slate-800 mt-3 mb-2',
-    5: 'text-base font-semibold text-slate-800 mt-3 mb-2 uppercase tracking-wide',
-    6: 'text-sm font-semibold text-slate-700 mt-3 mb-2 uppercase tracking-wider',
-  };
 
   const renderTextLines = (text: string, keyPrefix: string) => {
     const lines = text.split('\n');
     const nodes: React.ReactNode[] = [];
-    let lineIndex = 0;
+    let index = 0;
 
-    while (lineIndex < lines.length) {
-      const line = lines[lineIndex];
+    while (index < lines.length) {
+      const line = lines[index];
       const trimmed = line.trim();
 
       if (!trimmed) {
-        lineIndex += 1;
+        index += 1;
         continue;
       }
 
-      const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
-      if (headingMatch) {
-        const level = headingMatch[1].length;
-        const HeadingTag = `h${level}` as React.ElementType;
+      const heading = line.match(/^(#{1,4})\s+(.*)$/);
+      if (heading) {
+        const Tag = `h${heading[1].length}` as React.ElementType;
         nodes.push(
-          <HeadingTag
-            key={`${keyPrefix}-heading-${lineIndex}`}
-            className={headingStyles[level] || headingStyles[6]}
-            dangerouslySetInnerHTML={{ __html: renderInline(headingMatch[2].trim()) }}
-          />
+          <Tag key={`${keyPrefix}-h-${index}`} className="mb-2 mt-4 font-bold text-slate-900">
+            {renderInline(heading[2], `${keyPrefix}-h-${index}`)}
+          </Tag>
         );
-        lineIndex += 1;
+        index += 1;
         continue;
       }
 
-      if (/^\s*(?:---|\*\*\*|___)\s*$/.test(line)) {
-        nodes.push(<hr key={`${keyPrefix}-hr-${lineIndex}`} className="my-4 border-slate-200" />);
-        lineIndex += 1;
-        continue;
-      }
-
-      if (/^\s*>\s?/.test(line)) {
-        const quoteLines: string[] = [];
-        while (lineIndex < lines.length && /^\s*>\s?/.test(lines[lineIndex])) {
-          quoteLines.push(lines[lineIndex].replace(/^\s*>\s?/, ''));
-          lineIndex += 1;
-        }
-        nodes.push(
-          <blockquote key={`${keyPrefix}-quote-${lineIndex}`} className="border-l-2 border-indigo-200 pl-4 my-3">
-            {quoteLines.map((quoteLine, quoteIndex) =>
-              quoteLine.trim() ? (
-                <p
-                  key={`${keyPrefix}-quote-line-${quoteIndex}`}
-                  className="text-[15px] text-slate-700 italic leading-relaxed my-1"
-                  dangerouslySetInnerHTML={{ __html: renderInline(quoteLine) }}
-                />
-              ) : null
-            )}
-          </blockquote>
-        );
-        continue;
-      }
-
-      const unorderedMatch = line.match(/^\s*[-+*]\s+(.*)$/);
-      if (unorderedMatch) {
+      const unordered = line.match(/^\s*[-+*]\s+(.*)$/);
+      if (unordered) {
         const items: string[] = [];
-        while (lineIndex < lines.length) {
-          const match = lines[lineIndex].match(/^\s*[-+*]\s+(.*)$/);
+        while (index < lines.length) {
+          const match = lines[index].match(/^\s*[-+*]\s+(.*)$/);
           if (!match) break;
           items.push(match[1]);
-          lineIndex += 1;
+          index += 1;
         }
         nodes.push(
-          <ul key={`${keyPrefix}-ul-${lineIndex}`} className="list-disc pl-5 space-y-1 my-2">
-            {items.map((item, itemIndex) => (
-              <li
-                key={`${keyPrefix}-ul-item-${itemIndex}`}
-                className="text-[15px] text-slate-800 leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: renderInline(item) }}
-              />
-            ))}
+          <ul key={`${keyPrefix}-ul-${index}`} className="my-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-700">
+            {items.map((item, itemIndex) => <li key={itemIndex}>{renderInline(item, `${keyPrefix}-ul-${index}-${itemIndex}`)}</li>)}
           </ul>
         );
         continue;
       }
 
-      const orderedMatch = line.match(/^\s*\d+\.\s+(.*)$/);
-      if (orderedMatch) {
+      const ordered = line.match(/^\s*\d+\.\s+(.*)$/);
+      if (ordered) {
         const items: string[] = [];
-        while (lineIndex < lines.length) {
-          const match = lines[lineIndex].match(/^\s*\d+\.\s+(.*)$/);
+        while (index < lines.length) {
+          const match = lines[index].match(/^\s*\d+\.\s+(.*)$/);
           if (!match) break;
           items.push(match[1]);
-          lineIndex += 1;
+          index += 1;
         }
         nodes.push(
-          <ol key={`${keyPrefix}-ol-${lineIndex}`} className="list-decimal pl-5 space-y-1 my-2">
-            {items.map((item, itemIndex) => (
-              <li
-                key={`${keyPrefix}-ol-item-${itemIndex}`}
-                className="text-[15px] text-slate-800 leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: renderInline(item) }}
-              />
-            ))}
+          <ol key={`${keyPrefix}-ol-${index}`} className="my-2 list-decimal space-y-1 pl-5 text-sm leading-6 text-slate-700">
+            {items.map((item, itemIndex) => <li key={itemIndex}>{renderInline(item, `${keyPrefix}-ol-${index}-${itemIndex}`)}</li>)}
           </ol>
         );
         continue;
       }
 
+      if (trimmed.startsWith('>')) {
+        nodes.push(
+          <blockquote key={`${keyPrefix}-q-${index}`} className="my-2 border-l-2 border-slate-300 pl-3 text-sm italic text-slate-600">
+            {renderInline(trimmed.replace(/^>\s?/, ''), `${keyPrefix}-q-${index}`)}
+          </blockquote>
+        );
+        index += 1;
+        continue;
+      }
+
       nodes.push(
-        <p
-          key={`${keyPrefix}-p-${lineIndex}`}
-          className="text-[15px] [font-family:Georgia,Times,serif] text-[#12284b] leading-[1.62] my-2"
-          dangerouslySetInnerHTML={{ __html: renderInline(line) }}
-        />
+        <p key={`${keyPrefix}-p-${index}`} className="my-2 text-sm leading-6 text-slate-700">
+          {renderInline(line, `${keyPrefix}-p-${index}`)}
+        </p>
       );
-      lineIndex += 1;
+      index += 1;
     }
 
     return nodes;
   };
 
-  const renderTextBlock = (text: string, blockIndex: number) => {
-    const parts = text.split(MEDIA_PATTERN);
-    return parts.flatMap((part, partIndex) => {
+  const renderTextBlock = (text: string, blockIndex: number) =>
+    text.split(MEDIA_PATTERN).flatMap((part, partIndex) => {
       const imagePipe = part.match(/\[image\|(.*?)\|(.*?)\]/);
       const videoPipe = part.match(/\[video\|(.*?)\|(.*?)\]/);
       const imageMatch = part.match(/\[image:(.*?):?(.*?)\]/);
@@ -355,40 +240,21 @@ export const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => 
       if (videoPipe) return <MediaArtifact key={`media-${blockIndex}-${partIndex}`} type="video" url={videoPipe[1]} alt={videoPipe[2]} />;
       if (imageMatch) return <MediaArtifact key={`media-${blockIndex}-${partIndex}`} type="image" url={imageMatch[1]} alt={imageMatch[2]} />;
       if (videoMatch) return <MediaArtifact key={`media-${blockIndex}-${partIndex}`} type="video" url={videoMatch[1]} alt={videoMatch[2]} />;
-
       return renderTextLines(part, `text-${blockIndex}-${partIndex}`);
     });
-  };
-  
-  return (
-    <div className="prose-report space-y-2">
-      {blocks.map((block, index) => {
-        if (block.type === 'code') {
-          const { html, language } = highlightCode(block.content, block.language);
-          return (
-            <pre
-              key={`code-${index}`}
-              className="code-block relative bg-[#040d24] text-slate-100 rounded-2xl border border-[#0f1f45] overflow-hidden my-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-              data-language={language}
-            >
-              <div className="code-block-header flex items-center justify-between px-4 py-2 bg-[#091632] border-b border-[#16284f] text-[10px] font-black uppercase tracking-[0.25em] text-[#9db0d3]">
-                <span>{language}</span>
-              </div>
-              <code
-                className="hljs block px-4 py-4 text-[13px] leading-relaxed overflow-x-auto font-mono whitespace-pre-wrap break-words"
-                dangerouslySetInnerHTML={{ __html: html || '' }}
-              />
-            </pre>
-          );
-        }
 
-        const nodes = renderTextBlock(block.content, index);
-        return (
-          <React.Fragment key={`text-${index}`}>
-            {nodes}
-          </React.Fragment>
-        );
-      })}
+  return (
+    <div className="space-y-2">
+      {blocks.map((block, index) =>
+        block.type === 'code' ? (
+          <pre key={`code-${index}`} className="my-4 overflow-x-auto rounded-lg border border-slate-200 bg-slate-950 p-4 text-xs leading-6 text-slate-100">
+            {block.language && <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">{block.language}</div>}
+            <code>{block.content}</code>
+          </pre>
+        ) : (
+          <React.Fragment key={`text-${index}`}>{renderTextBlock(block.content, index)}</React.Fragment>
+        )
+      )}
     </div>
   );
 };

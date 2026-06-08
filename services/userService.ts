@@ -83,8 +83,70 @@ const normalizeUser = (
   };
 };
 
+type ServerUser = {
+  username: string;
+  role?: UserRole;
+  email?: string;
+  fullName?: string;
+  permissions?: Partial<ReportPermissions>;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+const userIdForUsername = (username: string) =>
+  `u-${username.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-') || 'user'}`;
+
 export const fetchUsers = async (): Promise<ManagedUser[]> => {
-  return readStore().users || [];
+  const localUsers = readStore().users || [];
+
+  if (typeof window === 'undefined') return localUsers;
+
+  try {
+    const response = await fetch('/api/admin/user-credentials', { cache: 'no-store' });
+    if (!response.ok) return localUsers;
+
+    const body = (await response.json()) as { users?: ServerUser[] };
+    const serverUsers = Array.isArray(body.users) ? body.users : [];
+    if (!serverUsers.length) return localUsers;
+
+    const localByUsername = new Map(
+      localUsers.map((user) => [user.username.trim().toLowerCase(), user])
+    );
+    const users = serverUsers.map((user) => {
+      const username = user.username.trim();
+      const existing = localByUsername.get(username.toLowerCase());
+      return normalizeUser({
+        ...existing,
+        id: existing?.id || userIdForUsername(username),
+        username,
+        fullName: user.fullName || existing?.fullName || username,
+        email: user.email || existing?.email || '',
+        role: user.role || existing?.role || 'User',
+        permissions: user.permissions || existing?.permissions,
+        avatarColor: existing?.avatarColor,
+        avatarUrl: existing?.avatarUrl,
+        isSystem: (user.role || existing?.role) === 'Admin' && !existing?.passwordUpdatedAt,
+        createdAt: user.createdAt || existing?.createdAt,
+      });
+    });
+
+    writeStore((store) => {
+      const activeStillExists = users.some((user) => user.id === store.activeUserId);
+      const activeUserId = activeStillExists ? store.activeUserId : users[0]?.id || null;
+      const userProfile = users.find((user) => user.id === activeUserId) || users[0] || store.userProfile;
+
+      return {
+        ...store,
+        users,
+        activeUserId,
+        userProfile,
+      };
+    });
+
+    return users;
+  } catch {
+    return localUsers;
+  }
 };
 
 export const ensureAdminUser = async (payload: { username: string; email?: string; fullName?: string }): Promise<ManagedUser> => {
@@ -321,16 +383,15 @@ export const setManagedUserPassword = async (userId: string, password: string): 
 };
 
 export const deleteManagedUser = async (userId: string): Promise<boolean> => {
-  let deletedUser: ManagedUser | null = null;
-  let deleted = false;
+  const target = (readStore().users || []).find((user) => user.id === userId) || null;
+  if (!target || target.role === 'Admin' || target.isSystem) return false;
+
+  await syncCredentialStore({
+    action: 'delete',
+    username: target.username,
+  });
 
   writeStore((store) => {
-    const target = (store.users || []).find((user) => user.id === userId) || null;
-    if (!target || target.role === 'Admin' || target.isSystem) return store;
-
-    deletedUser = target;
-    deleted = true;
-
     const users = (store.users || []).filter((user) => user.id !== userId);
     const fallback = users[0] || null;
 
@@ -342,21 +403,14 @@ export const deleteManagedUser = async (userId: string): Promise<boolean> => {
     };
   });
 
-  if (deleted && deletedUser) {
-    await syncCredentialStore({
-      action: 'delete',
-      username: deletedUser.username,
-    });
+  recordChange({
+    action: 'Deleted user account',
+    targetType: 'user',
+    targetId: target.id,
+    targetName: target.username,
+  });
 
-    recordChange({
-      action: 'Deleted user account',
-      targetType: 'user',
-      targetId: deletedUser.id,
-      targetName: deletedUser.username,
-    });
-  }
-
-  return deleted;
+  return true;
 };
 
 export const fetchUserProfile = async (): Promise<UserProfile | null> => {

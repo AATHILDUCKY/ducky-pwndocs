@@ -123,7 +123,7 @@ export interface UserProfile {
   updatedAt?: string;
 }
 
-export type UserRole = 'Admin' | 'Analyst' | 'Viewer';
+export type UserRole = 'Admin' | 'Analyst' | 'Viewer' | 'User';
 
 export interface ReportPermissions {
   canView: boolean;

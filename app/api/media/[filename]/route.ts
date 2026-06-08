@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE_NAME, verifySessionToken } from '@/lib/auth';
+import { DATA_DIRECTORY } from '@/lib/db';
 
-const MEDIA_DIR = path.join(process.cwd(), 'data', 'media');
+const MEDIA_DIR = path.join(DATA_DIRECTORY, 'media');
 
 const CONTENT_TYPES: Record<string, string> = {
   '.png': 'image/png',

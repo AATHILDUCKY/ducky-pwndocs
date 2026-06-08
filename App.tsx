@@ -20,11 +20,6 @@ import {
   Link2,
 } from 'lucide-react';
 
-const Dashboard = lazy(() => import('./components/Dashboard'));
-const IssueList = lazy(() => import('./components/IssueList'));
-const MethodologyTracker = lazy(() => import('./components/MethodologyTracker'));
-const AdminUsersPage = lazy(() => import('./components/AdminUsersPage'));
-const AdminDashboardPage = lazy(() => import('./components/AdminDashboardPage'));
 import { ManagedUser, Project, UserProfile, UserProfileInput, SmtpSettings, ReportPermissions } from './types';
 import { fetchProjects, createProject, deleteProject, updateProjectCollaborators } from './services/projectService';
 import {
@@ -36,10 +31,16 @@ import {
   updateUserProfile,
 } from './services/userService';
 import { fetchSmtpSettings, saveSmtpSettings } from './services/emailService';
-import ProfilePage from './components/ProfilePage';
-import HistoryPage from './components/HistoryPage';
 import ToastHost from './components/ui/ToastHost';
 import { notify } from './utils/notify';
+
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const IssueList = lazy(() => import('./components/IssueList'));
+const MethodologyTracker = lazy(() => import('./components/MethodologyTracker'));
+const AdminUsersPage = lazy(() => import('./components/AdminUsersPage'));
+const AdminDashboardPage = lazy(() => import('./components/AdminDashboardPage'));
+const ProfilePage = lazy(() => import('./components/ProfilePage'));
+const HistoryPage = lazy(() => import('./components/HistoryPage'));
 
 const Navigation: React.FC<{ onRefresh: () => void; isAdmin?: boolean; onOpenProjectAccess?: () => void; activeProjectId?: string }> = ({ onRefresh, isAdmin = false, onOpenProjectAccess, activeProjectId }) => {
   const location = useLocation();
@@ -447,19 +448,24 @@ const AppContent = () => {
       notify('Only Admin can create projects.');
       return;
     }
-    if (!newProject.name) return;
+    if (!newProject.name.trim()) return;
     try {
       setIsCreatingProject(true);
       setProjectError(null);
-      const created = await createProject({ ...newProject, parentId: null });
+      const created = await createProject({
+        name: newProject.name.trim(),
+        client: newProject.client.trim(),
+        parentId: null,
+      });
       await refreshProjects();
       navigate({ pathname: '/issues', search: `?project=${created.id}` }, { replace: true });
       setIsAddingProject(false);
       setNewProject({ name: '', client: '' });
     } catch (error) {
       console.error('Could not create project', error);
-      notify('Unable to create project.');
-      setProjectError('Unable to create project. Please try again.');
+      const message = error instanceof Error ? error.message : 'Unable to create project.';
+      notify(message);
+      setProjectError(message);
     } finally {
       setIsCreatingProject(false);
     }
@@ -474,8 +480,9 @@ const AppContent = () => {
       await refreshProjects();
     } catch (error) {
       console.error('Could not delete project', error);
-      notify('Unable to delete project.');
-      setProjectError('Unable to delete project. Please try again.');
+      const message = error instanceof Error ? error.message : 'Unable to delete project.';
+      notify(message);
+      setProjectError(message);
     }
   };
 
@@ -757,6 +764,34 @@ const AppContent = () => {
         {/* Workspace */}
         <main className="flex-1 overflow-y-auto bg-slate-50/10 custom-scrollbar">
           <div className="max-w-7xl mx-auto px-5 py-6 md:px-7 md:py-8 xl:px-8 xl:py-8 2xl:px-10 2xl:py-10">
+            <div className="mb-4 flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 lg:hidden">
+              <select
+                value={activeProjectId}
+                onChange={(event) => {
+                  const id = event.target.value;
+                  if (!id) return;
+                  navigate({ pathname: '/issues', search: `?project=${id}` }, { replace: true });
+                }}
+                className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none"
+              >
+                {!visibleProjects.length && <option value="">No projects yet</option>}
+                {visibleProjects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name} - {project.client || 'No client'}
+                  </option>
+                ))}
+              </select>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingProject(true)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600 text-white"
+                  title="Create project"
+                >
+                  <Plus size={16} />
+                </button>
+              )}
+            </div>
             {projectError ? (
               <div className="min-h-[400px] flex flex-col items-center justify-center gap-3 text-[10px] font-black uppercase tracking-[0.14em] text-rose-400">
                 {projectError}
@@ -947,7 +982,7 @@ const AppContent = () => {
                   value={newProject.name}
                   autoFocus
                   onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && newProject.name) handleCreateProject(); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && newProject.name.trim()) handleCreateProject(); }}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 focus:bg-white transition-all"
                 />
               </div>
@@ -958,7 +993,7 @@ const AppContent = () => {
                   placeholder="e.g. Acme Corp"
                   value={newProject.client}
                   onChange={(e) => setNewProject({ ...newProject, client: e.target.value })}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && newProject.name) handleCreateProject(); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && newProject.name.trim()) handleCreateProject(); }}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 focus:bg-white transition-all"
                 />
                 <p className="text-xs text-slate-400">Press Enter on either field to create quickly</p>
@@ -982,7 +1017,7 @@ const AppContent = () => {
               </button>
               <button
                 onClick={handleCreateProject}
-                disabled={!newProject.name || isCreatingProject}
+                disabled={!newProject.name.trim() || isCreatingProject}
                 className="flex-[2] py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold shadow-sm shadow-indigo-100 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isCreatingProject ? (

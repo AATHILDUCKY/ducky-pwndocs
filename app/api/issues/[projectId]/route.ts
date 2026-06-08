@@ -39,7 +39,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
   }
 
-  return NextResponse.json({ issues: listProjectIssues(normalizedProjectId) });
+  try {
+    return NextResponse.json({ issues: listProjectIssues(normalizedProjectId) });
+  } catch (error) {
+    console.error('Failed to read findings', error);
+    return NextResponse.json({ error: 'Finding data store is unavailable. Check APP_DATA_DIR permissions.' }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
@@ -75,7 +80,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: 'Issue payload is required.' }, { status: 400 });
   }
 
-  const issues = upsertProjectIssue(normalizedProjectId, payload.issue);
-  updateProjectIssueCounts(normalizedProjectId, issues);
+  let issues;
+  try {
+    issues = upsertProjectIssue(normalizedProjectId, payload.issue);
+    updateProjectIssueCounts(normalizedProjectId, issues);
+  } catch (error) {
+    console.error('Failed to save finding', error);
+    return NextResponse.json({ error: 'Unable to save finding. Check APP_DATA_DIR permissions.' }, { status: 500 });
+  }
   return NextResponse.json({ ok: true, issues });
 }

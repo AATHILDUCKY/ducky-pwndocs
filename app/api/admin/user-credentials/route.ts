@@ -53,15 +53,40 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
 
-  const users = listAuthUsers().map((user) => ({
-    username: user.username,
-    role: user.role,
-    email: user.email,
-    fullName: user.fullName,
-    permissions: user.permissions,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
-  }));
+  const admin = getAdminCredentials();
+  const adminUsername = admin.username.trim();
+  let managedUsers;
+  try {
+    managedUsers = listAuthUsers().map((user) => ({
+      username: user.username,
+      role: user.role,
+      email: user.email,
+      fullName: user.fullName,
+      permissions: user.permissions,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    }));
+  } catch (error) {
+    console.error('Failed to read users', error);
+    return NextResponse.json({ error: 'User data store is unavailable. Check APP_DATA_DIR permissions.' }, { status: 500 });
+  }
+  const hasPrimaryAdmin = managedUsers.some(
+    (user) => user.username.trim().toLowerCase() === adminUsername.toLowerCase()
+  );
+  const users = hasPrimaryAdmin
+    ? managedUsers
+    : [
+        {
+          username: adminUsername,
+          role: 'Admin' as const,
+          email: admin.email,
+          fullName: admin.fullName,
+          permissions: { canView: true, canCreate: true, canEdit: true },
+          createdAt: new Date(0).toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        ...managedUsers,
+      ];
 
   return NextResponse.json({ users });
 }
@@ -88,14 +113,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Password is required when creating a new user.' }, { status: 400 });
     }
 
-    const user = upsertAuthUser({
-      username,
-      role: payload.role || 'User',
-      email: payload.email,
-      fullName: payload.fullName,
-      permissions: payload.permissions,
-      passwordHash: payload.password?.trim() ? hashPasswordSecure(payload.password.trim()) : undefined,
-    });
+    let user;
+    try {
+      user = upsertAuthUser({
+        username,
+        role: payload.role || 'User',
+        email: payload.email,
+        fullName: payload.fullName,
+        permissions: payload.permissions,
+        passwordHash: payload.password?.trim() ? hashPasswordSecure(payload.password.trim()) : undefined,
+      });
+    } catch (error) {
+      console.error('Failed to save user', error);
+      return NextResponse.json({ error: 'Unable to save user. Check APP_DATA_DIR permissions.' }, { status: 500 });
+    }
 
     return NextResponse.json({ ok: true, username: user.username });
   }
@@ -105,10 +136,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Username and password are required.' }, { status: 400 });
     }
 
-    const user = upsertAuthUser({
-      username: payload.username.trim(),
-      passwordHash: hashPasswordSecure(payload.password.trim()),
-    });
+    let user;
+    try {
+      user = upsertAuthUser({
+        username: payload.username.trim(),
+        passwordHash: hashPasswordSecure(payload.password.trim()),
+      });
+    } catch (error) {
+      console.error('Failed to update user password', error);
+      return NextResponse.json({ error: 'Unable to update password. Check APP_DATA_DIR permissions.' }, { status: 500 });
+    }
 
     return NextResponse.json({ ok: true, username: user.username });
   }
@@ -128,7 +165,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'You cannot delete your own account.' }, { status: 400 });
     }
 
-    const deleted = removeAuthUser(normalized);
+    let deleted = false;
+    try {
+      deleted = removeAuthUser(normalized);
+    } catch (error) {
+      console.error('Failed to delete user', error);
+      return NextResponse.json({ error: 'Unable to delete user. Check APP_DATA_DIR permissions.' }, { status: 500 });
+    }
     return NextResponse.json({ ok: deleted });
   }
 

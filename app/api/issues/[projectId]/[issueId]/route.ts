@@ -34,7 +34,13 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
   }
 
-  const issues = deleteProjectIssue(normalizedProjectId, issueId.trim());
-  updateProjectIssueCounts(normalizedProjectId, issues);
+  let issues;
+  try {
+    issues = deleteProjectIssue(normalizedProjectId, issueId.trim());
+    updateProjectIssueCounts(normalizedProjectId, issues);
+  } catch (error) {
+    console.error('Failed to delete finding', error);
+    return NextResponse.json({ error: 'Unable to delete finding. Check APP_DATA_DIR permissions.' }, { status: 500 });
+  }
   return NextResponse.json({ ok: true, issues });
 }

@@ -21,6 +21,11 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/projects/route.js"
     ],
+    "/api/admin/user-credentials/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/admin/user-credentials/route.js"
+    ],
     "/api/issues/[projectId]/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
