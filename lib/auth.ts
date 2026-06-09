@@ -69,6 +69,23 @@ const sign = (value: string) =>
 
 export const getSessionTTLSeconds = () => SESSION_TTL_SECONDS;
 
+export const shouldUseSecureCookies = (requestUrl?: string): boolean => {
+  if (process.env.NODE_ENV !== 'production') return false;
+  if (!requestUrl) return true;
+
+  try {
+    const { hostname, protocol } = new URL(requestUrl);
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+    if (isLocalhost && protocol === 'http:') {
+      return false;
+    }
+  } catch {
+    return true;
+  }
+
+  return true;
+};
+
 export const getAdminCredentials = () => ({
   username: getEnv('ADMIN_USERNAME', 'admin'),
   password: getEnv('ADMIN_PASSWORD', 'ChangeMe_UseLongRandomPassword'),

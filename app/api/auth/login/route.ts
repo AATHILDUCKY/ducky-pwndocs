@@ -5,6 +5,7 @@ import {
   getAdminCredentials,
   getSessionTTLSeconds,
   isValidAdminLogin,
+  shouldUseSecureCookies,
   verifyPasswordSecure,
 } from '@/lib/auth';
 import { defaultPermissionsForRole, findAuthUserByIdentifier } from '@/lib/authUsersStore';
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
       name: SESSION_COOKIE_NAME,
       value: token,
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: shouldUseSecureCookies(request.url),
       sameSite: 'lax',
       path: '/',
       maxAge: getSessionTTLSeconds(),
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
     name: SESSION_COOKIE_NAME,
     value: token,
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: shouldUseSecureCookies(request.url),
     sameSite: 'lax',
     path: '/',
     maxAge: getSessionTTLSeconds(),
